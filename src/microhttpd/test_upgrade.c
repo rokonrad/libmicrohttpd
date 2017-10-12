@@ -50,7 +50,9 @@
 #include "test_helpers.h"
 
 #ifdef HTTPS_SUPPORT
+#ifdef HAVE_GNUTLS
 #include <gnutls/gnutls.h>
+#endif /* HAVE_GNUTLS */
 #include "../testcurl/https/tls_test_keys.h"
 
 #if defined(HAVE_FORK) && defined(HAVE_WAITPID)
@@ -159,7 +161,7 @@ struct wr_socket_strc
     wr_plain = 1,
     wr_tls = 2
   } t;
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   /**
    * TLS credentials
    */
@@ -174,7 +176,7 @@ struct wr_socket_strc
    * TLS handshake already succeed?
    */
   bool tls_connected;
-#endif
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
 };
 
 
@@ -223,7 +225,7 @@ wr_create_plain_sckt(void)
 static wr_socket
 wr_create_tls_sckt(void)
 {
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   wr_socket s = (wr_socket)malloc(sizeof(struct wr_socket_strc));
   if (WR_BAD == s)
     return WR_BAD;
@@ -255,7 +257,7 @@ wr_create_tls_sckt(void)
       (void)MHD_socket_close_ (s->fd);
     }
   free(s);
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   return WR_BAD;
 }
 
@@ -295,7 +297,7 @@ wr_connect(wr_socket s,
     return -1;
   if (wr_plain == s->t)
     return 0;
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (wr_tls == s->t)
     {
       /* Do not try handshake here as
@@ -306,11 +308,11 @@ wr_connect(wr_socket s,
       s->tls_connected = 0;
       return 0;
     }
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   return -1;
 }
 
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
 /* Only to be called from wr_send() and wr_recv() ! */
 static bool wr_handshake(wr_socket s)
 {
@@ -323,7 +325,7 @@ static bool wr_handshake(wr_socket s)
     MHD_socket_set_error_ (MHD_SCKT_ECONNABORTED_); /* hard error */
   return s->tls_connected;
 }
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
 
 
 /**
@@ -342,7 +344,7 @@ wr_send (wr_socket s,
 {
   if (wr_plain == s->t)
     return MHD_send_(s->fd, buf, len);
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (wr_tls == s->t)
     {
       ssize_t ret;
@@ -357,7 +359,7 @@ wr_send (wr_socket s,
       else
         MHD_socket_set_error_ (MHD_SCKT_ECONNABORTED_); /* hard error */
     }
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   return -1;
 }
 
@@ -378,7 +380,7 @@ wr_recv (wr_socket s,
 {
   if (wr_plain == s->t)
     return MHD_recv_ (s->fd, buf, len);
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (wr_tls == s->t)
     {
       ssize_t ret;
@@ -393,7 +395,7 @@ wr_recv (wr_socket s,
       else
         MHD_socket_set_error_ (MHD_SCKT_ECONNABORTED_); /* hard error */
     }
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   return -1;
 }
 
@@ -407,13 +409,13 @@ static int
 wr_close (wr_socket s)
 {
   int ret = (MHD_socket_close_(s->fd)) ? 0 : -1;
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (wr_tls == s->t)
     {
       gnutls_deinit (s->tls_s);
       gnutls_certificate_free_credentials (s->tls_crd);
     }
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   free(s);
   return ret;
 }
@@ -1112,8 +1114,10 @@ main (int argc,
       else if (0 == system ("openssl version 1> /dev/null"))
         use_tls_tool = TLS_CLI_OPENSSL;
 #endif /* HAVE_FORK && HAVE_WAITPID */
+#ifdef HAVE_GNUTLS
       else
         use_tls_tool = TLS_LIB_GNUTLS; /* Should be available as MHD use it. */
+#endif /* HAVE_GNUTLS */
       if (verbose)
         {
           switch (use_tls_tool)
@@ -1127,13 +1131,18 @@ main (int argc,
             case TLS_LIB_GNUTLS:
               printf ("GnuTLS library will be used for testing.\n");
               break;
+            case TLS_CLI_NO_TOOL:
+              printf ("No tool or library available for testing.\n");
+              return 77;
             default:
               abort ();
           }
         }
+#ifdef HAVE_GNUTLS
       if ( (TLS_LIB_GNUTLS == use_tls_tool) &&
            (GNUTLS_E_SUCCESS != gnutls_global_init()) )
         abort ();
+#endif /* HAVE_GNUTLS */
 
 #else  /* ! HTTPS_SUPPORT */
       fprintf (stderr, "HTTPS support was disabled by configure.\n");
@@ -1261,9 +1270,9 @@ main (int argc,
     fprintf (stderr,
              "Error (code: %u)\n",
              error_count);
-#ifdef HTTPS_SUPPORT
+#if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (test_tls && (TLS_LIB_GNUTLS == use_tls_tool))
     gnutls_global_deinit();
-#endif /* HTTPS_SUPPORT */
+#endif /* HTTPS_SUPPORT && HAVE_GNUTLS */
   return error_count != 0;       /* 0 == pass */
 }

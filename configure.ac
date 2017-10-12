@@ -1347,6 +1347,7 @@ GNUTLS_LDFLAGS=""
 have_gnutls=no
 have_gnutls_sni=no
 have_gcrypt=no
+have_openssl=no
 
 # optional: HTTPS support.  Enabled by default
 AC_ARG_ENABLE([https],
@@ -1358,6 +1359,9 @@ then
 #
 # Next block is large unindented block
 #
+
+# We support HTTPS using GnuTLS/libgcrypt or OpenSSL. We need at least one,
+# but we can include support for multiple TLS engines at built time.
 
 # gnutls
 have_gnutls_pkgcfg=no
@@ -1497,6 +1501,90 @@ AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
   ]
 )
 AS_IF([test "x$have_gnutls" != "xyes" && test "x$with_gnutls" = "xyes"], [AC_MSG_ERROR([[can't find usable libgnutls]])])
+
+# OpenSSL
+have_openssl_pkgcfg=no
+AC_MSG_CHECKING([[how to find OpenSSL library]])
+AC_ARG_WITH([[openssl]],
+   [AS_HELP_STRING([[--with-openssl[=PFX]]],[use OpenSSL for HTTPS support, optional PFX overrides pkg-config data for OpenSSL headers (PFX/include) and libs (PFX/lib)])],
+   [
+    case $with_openssl in
+      no)
+        AC_MSG_RESULT([[OpenSSL disabled]])
+        ;;
+      yes)
+        AC_MSG_RESULT([[automatically, forced]])
+        ;;
+      *)
+        AC_MSG_RESULT([[-I$with_openssl/include -L$with_openssl/lib -lssl -lcrypto]])
+        SAVE_LDFLAGS="$LDFLAGS"
+        SAVE_CPPFLAGS="$CPPFLAGS"
+        LDFLAGS="-L$with_openssl/lib $LDFLAGS"
+        CPPFLAGS="-I$with_openssl/include $CPPFLAGS"
+        have_openssl_pkgcfg=no
+          AC_CHECK_HEADERS([openssl/ssl.h],
+            [AC_CHECK_LIB([libssl], [SSL_CTX_new],
+              [
+                OPENSSL_CPPFLAGS="-I$with_openssl/include"
+                OPENSSL_LDFLAGS="-L$with_openssl/lib"
+                OPENSSL_LIBS="-lssl -lcrypto"
+                have_openssl=yes
+              ])], [], [AC_INCLUDES_DEFAULT])
+        AS_IF([test "x$have_openssl" != "xyes"], [AC_MSG_ERROR([can't find usable libssl at specified prefix $with_openssl])])
+        LDFLAGS="$SAVE_LDFLAGS"
+        CPPFLAGS="$SAVE_CPPFLAGS"
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([[automatically]])
+   ])
+
+AS_IF([test "x$with_openssl" != "xno" && test "x$have_openssl" != "xyes"],
+  [
+    PKG_CHECK_MODULES([OPENSSL], [openssl],
+      [
+       have_openssl_pkgcfg='yes'
+       SAVE_CPPFLAGS="$CPPFLAGS"
+       SAVE_CFLAGS="$CFLAGS"
+       SAVE_LDFLAGS="$LDFLAGS"
+       SAVE_LIBS="$LIBS"
+       CPPFLAGS="$OPENSSL_CFLAGS $CPPFLAGS"
+       CFLAGS="$OPENSSL_CFLAGS $CFLAGS"
+       LDFLAGS="$OPENSSL_LIBS $LDFLAGS"
+       LIBS="$LIBS $OPENSSL_LIBS"
+       AC_MSG_CHECKING([[whether OpenSSL is usable]])
+       AC_LINK_IFELSE([
+         AC_LANG_PROGRAM([[#include <openssl/ssl.h>]], [[
+                SSL_CTX *ssl_ctx;
+                SSL_library_init();
+                ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+                SSL_CTX_set_cipher_list(ssl_ctx, "DEFAULT");
+          ]])],
+          [
+           AC_MSG_RESULT([[yes]])
+           have_openssl=yes
+           OPENSSL_CPPFLAGS="$OPENSSL_CFLAGS"
+           OPENSSL_LDFLAGS="$OPENSSL_LIBS"
+          ],
+          [
+           AC_MSG_RESULT([[no]])
+           have_openssl=no
+          ])
+
+       AS_IF([test "x$have_openssl" != "xyes"], [AC_MSG_WARN([pkg-config reports that OpenSSL is present, but OpenSSL can't be used])])
+       CPPFLAGS="$SAVE_CPPFLAGS"
+       CFLAGS="$SAVE_CFLAGS"
+       LDFLAGS="$SAVE_LDFLAGS"
+       LIBS="$SAVE_LIBS"
+      ],
+      [
+       have_openssl_pkgcfg='no'
+      ]
+    )
+  ]
+)
+
+AS_IF([test "x$have_openssl" != "xyes" && test "x$with_openssl" = "xyes"], [AC_MSG_ERROR([[can't find usable OpenSSL]])])
 #
 # End of large unindented block
 #
@@ -1561,68 +1649,113 @@ choke me now
   AC_SUBST([GNUTLS_LDFLAGS])
   AC_SUBST([GNUTLS_LIBS])
 
-  AS_UNSET([[crypt_missing]])
+  AC_SUBST([OPENSSL_CPPFLAGS])
+  AC_SUBST([OPENSSL_CFLAGS])
+  AC_SUBST([OPENSSL_LDFLAGS])
+  AC_SUBST([OPENSSL_LIBS])
+
+  have_https=no
+  MSG_TLS_ENGINES=""
+
+  AC_MSG_CHECKING([whether we can support HTTPS with GnuTLS])
   AS_IF([[test "x$have_gnutls" = "xyes"]],
     [
      AS_IF([[test "x$mhd_cv_grypt_required" = "xyes" && test "x$have_gcrypt" != "xyes"]],
        [
-        crypt_missing="required libgcrypt"
-        AS_IF([[test "x$enable_https" = "xyes" ]], [AC_MSG_ERROR([[HTTPS support cannot be enabled without $crypt_missing.]])])
-        enable_https=no
-        MSG_HTTPS="no (lacking $crypt_missing)"
+        AC_MSG_RESULT([no (lacking required libgcrypt)])
        ],
-         [
-          AC_DEFINE([[HTTPS_SUPPORT]],[[1]],[Define to 1 if libmicrohttpd is compiled with HTTPS support.])
-          enable_https=yes
-          AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
-            [
-             MSG_HTTPS="yes (using libgnutls and libgcrypt)"
-             MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $LIBGCRYPT_CFLAGS $GNUTLS_CPPFLAGS"
-             MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $LIBGCRYPT_CFLAGS $GNUTLS_CFLAGS"
-             MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
-             MHD_LIBDEPS="$GNUTLS_LIBS $LIBGCRYPT_LIBS $MHD_LIBDEPS"
-             AC_DEFINE([[MHD_HTTPS_REQUIRE_GRYPT]], [[1]], [Define to `1' if HTTPS require initialisation of libgcrypt])
-            ],
-            [[
-             MSG_HTTPS="yes (using libgnutls)"
-             MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $GNUTLS_CPPFLAGS"
-             MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $GNUTLS_CFLAGS"
-             MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
-             MHD_LIBDEPS="$GNUTLS_LIBS $MHD_LIBDEPS"
-            ]]
-          )
-          AS_IF([[ test "x$have_gnutls_pkgcfg" = "xyes" ]],
-            [ # remove GnuTLS from private libs in .pc file as it defined in Requires.private
-              MHD_REQ_PRIVATE='gnutls'
-              AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
-                [[MHD_LIBDEPS_PKGCFG="$LIBGCRYPT_LIBS $MHD_LIBDEPS_PKGCFG"]]
-              )
-            ],
-            [
-              MHD_REQ_PRIVATE=''
-              AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
-                [[MHD_LIBDEPS_PKGCFG="$LIBGCRYPT_LIBS $MHD_LIBDEPS_PKGCFG"]]
-              )
-              MHD_LIBDEPS_PKGCFG="$GNUTLS_LIBS $MHD_LIBDEPS_PKGCFG"
-          ])
-         ]
+       [
+        have_https=yes
+        AC_DEFINE([HAVE_GNUTLS],[1],[Define to 1 if we can use GnuTLS.])
+        AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
+          [
+           AC_MSG_RESULT([yes (using libgnutls and libgcrypt)])
+           MSG_TLS_ENGINES+="${MSG_TLS_ENGINES:+, }libgnutls and libgcrypt"
+           MSG_HTTPS="yes (using libgnutls and libgcrypt)"
+           MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $LIBGCRYPT_CFLAGS $GNUTLS_CPPFLAGS"
+           MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $LIBGCRYPT_CFLAGS $GNUTLS_CFLAGS"
+           MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
+           MHD_LIBDEPS="$GNUTLS_LIBS $LIBGCRYPT_LIBS $MHD_LIBDEPS"
+           AC_DEFINE([[MHD_HTTPS_REQUIRE_GRYPT]], [[1]], [Define to `1' if HTTPS require initialisation of libgcrypt])
+          ],
+          [
+           AC_MSG_RESULT([yes])
+           MSG_TLS_ENGINES+="${MSG_TLS_ENGINES:+, }libgnutls"
+           MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $GNUTLS_CPPFLAGS"
+           MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $GNUTLS_CFLAGS"
+           MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
+           MHD_LIBDEPS="$GNUTLS_LIBS $MHD_LIBDEPS"
+          ]
+        )
+        AS_IF([[ test "x$have_gnutls_pkgcfg" = "xyes" ]],
+          [ # remove GnuTLS from private libs in .pc file as it defined in Requires.private
+            MHD_REQ_PRIVATE+=' gnutls'
+            AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
+              [[MHD_LIBDEPS_PKGCFG="$LIBGCRYPT_LIBS $MHD_LIBDEPS_PKGCFG"]]
+            )
+          ],
+          [
+            AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
+              [[MHD_LIBDEPS_PKGCFG="$LIBGCRYPT_LIBS $MHD_LIBDEPS_PKGCFG"]]
+            )
+            MHD_LIBDEPS_PKGCFG="$GNUTLS_LIBS $MHD_LIBDEPS_PKGCFG"
+        ])
+       ]
      )
+    ], [test "x$with_gnutls" = "xno"],
+    [
+     AC_MSG_RESULT([no (disabled)])
     ],
     [
-     crypt_missing="libgnutls"
-     AS_IF([[test "x$enable_https" = "xyes" ]], [AC_MSG_ERROR([[HTTPS support cannot be enabled without $crypt_missing.]])])
-     enable_https=no
-     MSG_HTTPS="no (lacking $crypt_missing)"
+     AC_MSG_RESULT([no (lacking libgnutls)])
     ]
   )
+
+  AC_MSG_CHECKING([whether we can support HTTPS with OpenSSL])
+  AS_IF([test "x$have_openssl" = "xyes"], [
+          have_https=yes
+          AC_MSG_RESULT([yes])
+          AC_DEFINE([HAVE_OPENSSL],[1],[Define to 1 if we can use OpenSSL.])
+          MSG_TLS_ENGINES+="${MSG_TLS_ENGINES:+, }openssl"
+          MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $OPENSSL_CPPFLAGS"
+          MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $OPENSSL_CFLAGS"
+          MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $OPENSSL_LDFLAGS"
+          MHD_LIBDEPS="$OPENSSL_LIBS $MHD_LIBDEPS"
+          AS_IF([[ test "x$have_gnutls_pkgcfg" = "xyes" ]],
+            [ # remove OpenSSL from private libs in .pc file as it defined in Requires.private
+              MHD_REQ_PRIVATE+=' openssl'
+            ],
+            [
+              MHD_LIBDEPS_PKGCFG="$OPENSSL_LIBS $MHD_LIBDEPS_PKGCFG"
+          ])
+        ], [test "x$with_openssl" = "xno"],
+        [
+         AC_MSG_RESULT([no (disabled)])
+        ],
+        [
+         AC_MSG_RESULT([no (lacking libssl and libcrypto)])
+        ])
+
+  AS_IF([test "x$enable_https" = "xyes" -a "x$have_https" = "xno"],
+    [
+     AC_MSG_ERROR([[HTTPS support cannot be enabled without GnuTLS or OpenSSL.]])
+    ])
+
+  AS_IF([test "x$have_https" = "xyes"], [
+          AC_DEFINE([[HTTPS_SUPPORT]],[[1]],[Define to 1 if libmicrohttpd is compiled with HTTPS support.])
+          MSG_HTTPS="yes (using $MSG_TLS_ENGINES)"
+        ], [
+          MSG_HTTPS="no (no TLS engines found)"
+        ])
 else
   MSG_HTTPS="no (disabled)"
 fi
-AC_MSG_CHECKING(whether to support HTTPS)
+AC_MSG_CHECKING([whether to support HTTPS])
 AC_MSG_RESULT([$MSG_HTTPS])
 
 AM_CONDITIONAL([HAVE_GNUTLS], [[test "x$have_gnutls" = "xyes"]])
 AM_CONDITIONAL([HAVE_GNUTLS_SNI], [[test "x$have_gnutls_sni" = "xyes"]])
+AM_CONDITIONAL([HAVE_OPENSSL], [test "x$have_openssl" = "xyes"])
 AM_CONDITIONAL([ENABLE_HTTPS], [test "x$enable_https" = "xyes"])
 AM_CONDITIONAL([HTTPS_REQUIRE_GRYPT], [[test "x$enable_https" = "xyes" && test "x$mhd_cv_grypt_required" = "xyes"]])
 

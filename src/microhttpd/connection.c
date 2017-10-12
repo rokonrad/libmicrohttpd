@@ -1755,10 +1755,12 @@ MHD_connection_update_event_loop_info (struct MHD_Connection *connection)
             connection->event_loop_info = MHD_EVENT_LOOP_INFO_READ;
             return;
           case MHD_TLS_CONN_HANDSHAKING:
-            if (0 == gnutls_record_get_direction (connection->tls_session))
+            if (MHD_TLS_session_wants_read (connection->tls_session))
               connection->event_loop_info = MHD_EVENT_LOOP_INFO_READ;
-            else
+            else if (MHD_TLS_session_wants_write (connection->tls_session))
               connection->event_loop_info = MHD_EVENT_LOOP_INFO_WRITE;
+            else
+              MHD_PANIC(_("TLS session not reading nor writing\n"));
             return;
           default:
             break;
@@ -3754,19 +3756,52 @@ MHD_get_connection_info (struct MHD_Connection *connection,
     {
 #ifdef HTTPS_SUPPORT
     case MHD_CONNECTION_INFO_CIPHER_ALGO:
+#ifdef HAVE_GNUTLS
       if (NULL == connection->tls_session)
-	return NULL;
-      connection->cipher = gnutls_cipher_get (connection->tls_session);
+        return NULL;
+      if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)
+        return NULL;
+      connection->cipher = gnutls_cipher_get (connection->tls_session->d.gnutls.session);
       return (const union MHD_ConnectionInfo *) &connection->cipher;
+#else
+      return NULL;
+#endif
     case MHD_CONNECTION_INFO_PROTOCOL:
+#ifdef HAVE_GNUTLS
       if (NULL == connection->tls_session)
-	return NULL;
-      connection->protocol = gnutls_protocol_get_version (connection->tls_session);
+        return NULL;
+      if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)
+        return NULL;
+      connection->protocol = gnutls_protocol_get_version (connection->tls_session->d.gnutls.session);
       return (const union MHD_ConnectionInfo *) &connection->protocol;
+#else
+      return NULL;
+#endif
     case MHD_CONNECTION_INFO_GNUTLS_SESSION:
+#ifdef HAVE_GNUTLS
       if (NULL == connection->tls_session)
-	return NULL;
-      return (const union MHD_ConnectionInfo *) &connection->tls_session;
+        return NULL;
+      if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)
+        return NULL;
+      return (const union MHD_ConnectionInfo *) &connection->tls_session->d.gnutls.session;
+#else
+      return NULL;
+#endif
+    case MHD_CONNECTION_INFO_TLS_PROTOCOL_VERSION:
+      if (NULL == connection->tls_session)
+        return NULL;
+      connection->tls_protocol_version = MHD_TLS_get_session_protocol_version (connection->tls_session);
+      return (const union MHD_ConnectionInfo *) &connection->tls_protocol_version;
+    case MHD_CONNECTION_INFO_TLS_SESSION:
+      if (NULL == connection->tls_session)
+        return NULL;
+      connection->tls_specific_session = MHD_TLS_get_specific_session (connection->tls_session);
+      return (const union MHD_ConnectionInfo *) &connection->tls_specific_session;
+    case MHD_CONNECTION_INFO_TLS_CIPHER_ALGO:
+      if (NULL == connection->tls_session)
+        return NULL;
+      connection->tls_cipher_algorithm = MHD_TLS_get_session_cipher_algorithm (connection->tls_session);
+      return (const union MHD_ConnectionInfo *) &connection->tls_cipher_algorithm;
 #endif /* HTTPS_SUPPORT */
     case MHD_CONNECTION_INFO_CLIENT_ADDRESS:
       return (const union MHD_ConnectionInfo *) &connection->addr;

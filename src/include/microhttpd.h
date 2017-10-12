@@ -866,6 +866,243 @@ struct MHD_Response;
  */
 struct MHD_PostProcessor;
 
+/**
+ * @brief Supported TLS engines.
+ */
+enum MHD_TLS_EngineType
+{
+  /**
+   * @brief No TLS engine.
+   */
+  MHD_TLS_ENGINE_TYPE_NONE = 0,
+
+  /**
+   * @brief GnuTLS-based TLS engine.
+   */
+  MHD_TLS_ENGINE_TYPE_GNUTLS = 1,
+
+  /**
+   * @brief OpenSSL-based TLS engine.
+   */
+  MHD_TLS_ENGINE_TYPE_OPENSSL = 2,
+
+  /**
+   * @brief Upper-bound value.
+   */
+  MHD_TLS_ENGINE_TYPE_MAX = MHD_TLS_ENGINE_TYPE_OPENSSL
+};
+
+/**
+ * @brief TLS protocol version.
+ */
+enum MHD_TLS_ProtocolVersion
+{
+  /**
+   * @brief Unknown version.
+   */
+  MHD_TLS_PROTOCOL_VERSION_UNKNOWN = 0,
+
+  /**
+   * @brief SSL v3.
+   */
+  MHD_TLS_PROTOCOL_VERSION_SSL_V3 = 1,
+
+  /**
+   * @brief TLS v1.0.
+   */
+  MHD_TLS_PROTOCOL_VERSION_TLS_V1_0 = 2,
+
+  /**
+   * @brief TLS v1.1.
+   */
+  MHD_TLS_PROTOCOL_VERSION_TLS_V1_1 = 3,
+
+  /**
+   * @brief TLS v1.2.
+   */
+  MHD_TLS_PROTOCOL_VERSION_TLS_V1_2 = 4,
+
+  /**
+   * @brief Upper-bound value.
+   */
+  MHD_TLS_PROTOCOL_VERSION_MAX = MHD_TLS_PROTOCOL_VERSION_TLS_V1_2
+};
+
+/**
+ * @brief TLS cipher algorithm.
+ */
+enum MHD_TLS_CipherAlgorithm
+{
+  /**
+   * @brief Unknown algorithm.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_UNKNOWN = 0,
+
+  /**
+   * @brief Null algorithm.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_NULL = 1,
+
+  /**
+   * @brief RC4 with 40-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC4_40 = 2,
+
+  /**
+   * @brief RC4 with 56-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC4_56 = 2,
+
+  /**
+   * @brief RC4 with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC4_128 = 3,
+
+  /**
+   * @brief ChaCha20-Poly1305 with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CHACHA20_POLY1305_256 = 4,
+
+  /**
+   * @brief RC2 in CBC mode with 40-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC2_40_CBC = 5,
+
+  /**
+   * @brief RC2 in CBC mode with 56-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC2_56_CBC = 5,
+
+  /**
+   * @brief RC2 in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_RC2_128_CBC = 5,
+
+  /**
+   * @brief DES in CBC mode with 40-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_DES_40_CBC = 6,
+
+  /**
+   * @brief DES in CBC mode with 56-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_DES_56_CBC = 7,
+
+  /**
+   * @brief IDEA in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_IDEA_128_CBC = 8,
+
+  /**
+   * @brief GOST 28147-89 in CTR mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_GOST_28147_89_256_CNT = 9,
+
+  /**
+   * @brief 3DES EDE in CBC mode with 112-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_3DES_EDE_112_CBC = 10,
+
+  /**
+   * @brief SEED in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_SEED_128_CBC = 11,
+
+  /**
+   * @brief ARIA in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_ARIA_128_CBC = 12,
+
+  /**
+   * @brief ARIA in CBC mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_ARIA_256_CBC = 13,
+
+  /**
+   * @brief ARIA in GCM mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_ARIA_128_GCM = 14,
+
+  /**
+   * @brief ARIA in GCM mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_ARIA_256_GCM = 15,
+
+  /**
+   * @brief Camellia in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_128_CBC = 16,
+
+  /**
+   * @brief Camellia in CBC mode with 192-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_192_CBC = 16,
+
+  /**
+   * @brief Camellia in CBC mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_256_CBC = 17,
+
+  /**
+   * @brief Camellia in GCM mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_128_GCM = 18,
+
+  /**
+   * @brief Camellia in GCM mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_256_GCM = 19,
+
+  /**
+   * @brief AES in CBC mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_128_CBC = 20,
+
+  /**
+   * @brief AES in CBC mode with 192-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_192_CBC = 20,
+
+  /**
+   * @brief AES in CBC mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_256_CBC = 21,
+
+  /**
+   * @brief AES in GCM mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_128_GCM = 22,
+
+  /**
+   * @brief AES in GCM mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_256_GCM = 23,
+
+  /**
+   * @brief AES in CCM mode with 128-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_128_CCM = 24,
+
+  /**
+   * @brief AES in CCM mode with 256-bit keys.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_256_CCM = 25,
+
+  /**
+   * @brief AES in CCM mode with 128-bit keys and 8-byte tag.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_128_8_CCM = 24,
+
+  /**
+   * @brief AES in CCM mode with 256-bit keys and 8-byte tag.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_AES_256_8_CCM = 25,
+
+  /**
+   * @brief Upper-bound value.
+   */
+  MHD_TLS_CIPHER_ALGORITHM_MAX = MHD_TLS_CIPHER_ALGORITHM_AES_256_8_CCM
+};
 
 /**
  * @brief Flags for the `struct MHD_Daemon`.
@@ -1288,6 +1525,10 @@ enum MHD_OPTION
   /**
    * Memory pointer to a `const char *` specifying the
    * cipher algorithm (default: "NORMAL").
+   *
+   * Setting this option will fail if the TLS engine is not GnuTLS.
+   *
+   * @deprecated use #MHD_OPTION_TLS_PRIORITIES instead
    */
   MHD_OPTION_HTTPS_PRIORITIES = 11,
 
@@ -1413,6 +1654,8 @@ enum MHD_OPTION
    * based on the SNI information provided.  The callback is expected
    * to access the SNI data using `gnutls_server_name_get()`.
    * Using this option requires GnuTLS 3.0 or higher.
+   *
+   * @deprecated use #MHD_OPTION_TLS_CERT_CALLBACK instead
    */
   MHD_OPTION_HTTPS_CERT_CALLBACK = 22,
 
@@ -1479,9 +1722,58 @@ enum MHD_OPTION
    * MHD, and 0 in production.
    * This option should be followed by an `int` argument.
    */
-  MHD_OPTION_STRICT_FOR_CLIENT = 29
-};
+  MHD_OPTION_STRICT_FOR_CLIENT = 29,
 
+  /**
+   * Set the TLS engine type to use for HTTPS connections. See
+   * #MHD_TLS_EngineType for allowed values. For compatibility with the
+   * previous versions of MHD, the default engine is GnuTLS. If it's not
+   * available, we will switch to OpenSSL. A few options will behave
+   * differently based on the selected TLS engine. For example, the
+   * #MHD_OPTION_HTTPS_CERT_CALLBACK will expect a callback with a different
+   * signature, and #MHD_CONNECTION_INFO_TLS_SESSION will return an OpenSSL
+   * session instead of a GnuTLS one. Besides, all GnuTLS-specific option will
+   * return an error if called with a different TLS engine.
+   *
+   * You must set this option before any other HTTPS-related option. Indeed,
+   * the first time an HTTPS option is met, we create the TLS engine based on
+   * the currently selected engine type. If this option has not been met yet,
+   * we use the default TLS engine if available, or fail otherwise.
+   */
+    MHD_OPTION_TLS_ENGINE_TYPE = 30,
+
+  /**
+   * Memory pointer to a `const char *` specifying the cipher algorithm.
+   *
+   * For GnuTLS, it must use the format expected by @c gnutls_priority_init().
+   * It defaults to "NORMAL".
+   *
+   * For OpenSSL, it must use the format expected by @c SSL_CTX_set_cipher_list().
+   */
+    MHD_OPTION_TLS_PRIORITIES = 31,
+
+  /**
+   * Use a callback to determine which X.509 certificate should be
+   * used for a given HTTPS connection.
+   * This option provides an
+   * alternative to #MHD_OPTION_HTTPS_MEM_KEY,
+   * #MHD_OPTION_HTTPS_MEM_CERT.  You must use this version if
+   * multiple domains are to be hosted at the same IP address using
+   * TLS's Server Name Indication (SNI) extension.  In this case,
+   * the callback is expected to select the correct certificate
+   * based on the SNI information provided.  The callback is expected
+   * to access the SNI data using `gnutls_server_name_get()`.
+   * Using this option requires GnuTLS 3.0 or higher.
+   *
+   * For GnuTLS, it must be followed by an argument of type
+   * `gnutls_certificate_retrieve_function2 *`.
+   *
+   * For OpenSSL, it must be followed by the same callback expected by @c
+   * SSL_CTX_set_cert_cb(). It will receive the OpenSSL SSL session as its
+   * first parameter. The second parameter will always be @c NULL.
+   */
+    MHD_OPTION_TLS_CERT_CALLBACK = 32
+};
 
 /**
  * Entry in an #MHD_OPTION_ARRAY.
@@ -1679,12 +1971,19 @@ union MHD_ConnectionInfo
   size_t header_size;
 
   /**
-   * GNUtls session handle, of type "gnutls_session_t".
+   * TLS-engine-specific session handle.
+   *
+   * For GnuTLS, it's a pointer of type @c gnutls_session_t.
+   *
+   * For OpenSSL, it's a pointer of type @c SSL.
    */
-  void * /* gnutls_session_t */ tls_session;
+  void * tls_session;
 
   /**
    * GNUtls client certificate handle, of type "gnutls_x509_crt_t".
+   *
+   * @note never implemented
+   * @sa #MHD_CONNECTION_INFO_GNUTLS_CLIENT_CERT
    */
   void * /* gnutls_x509_crt_t */ client_cert;
 
@@ -1704,6 +2003,16 @@ union MHD_ConnectionInfo
    * the "socket_context" of the #MHD_NotifyConnectionCallback.
    */
   void *socket_context;
+
+  /**
+   * TLS protocol version.
+   */
+  enum MHD_TLS_ProtocolVersion tls_protocol_version;
+
+  /**
+   * TLS cipher algorithm.
+   */
+  enum MHD_TLS_CipherAlgorithm tls_cipher_algorithm;
 };
 
 
@@ -1717,13 +2026,17 @@ enum MHD_ConnectionInfoType
   /**
    * What cipher algorithm is being used.
    * Takes no extra arguments.
+   * It's made available in attribute #MHD_ConnectionInfo::cipher_algorithm,
+   * but only when using the GnuTLS TLS engine.
    * @ingroup request
    */
   MHD_CONNECTION_INFO_CIPHER_ALGO,
 
   /**
-   *
+   * What version of the TLS protocol is being used.
    * Takes no extra arguments.
+   * It's made available in attribute #MHD_ConnectionInfo::tls_session, but
+   * only when using the GnuTLS TLS engine.
    * @ingroup request
    */
   MHD_CONNECTION_INFO_PROTOCOL,
@@ -1738,15 +2051,16 @@ enum MHD_ConnectionInfoType
   MHD_CONNECTION_INFO_CLIENT_ADDRESS,
 
   /**
-   * Get the gnuTLS session handle.
+   * Get the GnuTLS session handle.
+   * It's made available in attribute #MHD_ConnectionInfo::tls_session.
    * @ingroup request
    */
   MHD_CONNECTION_INFO_GNUTLS_SESSION,
 
   /**
-   * Get the gnuTLS client certificate handle.  Dysfunctional (never
+   * Get the GnuTLS client certificate handle.  Dysfunctional (never
    * implemented, deprecated).  Use #MHD_CONNECTION_INFO_GNUTLS_SESSION
-   * to get the `gnutls_session_t` and then call
+   * when using the GnuTLS engine to get the `gnutls_session_t` and then call
    * gnutls_certificate_get_peers().
    */
   MHD_CONNECTION_INFO_GNUTLS_CLIENT_CERT,
@@ -1790,7 +2104,29 @@ enum MHD_ConnectionInfoType
    * Return length of the client's HTTP request header.
    * @ingroup request
    */
-  MHD_CONNECTION_INFO_REQUEST_HEADER_SIZE
+  MHD_CONNECTION_INFO_REQUEST_HEADER_SIZE,
+
+  /**
+   * Get the TLS protocol version used.
+   * It's made available in #MHD_ConnectionInfo::tls_protocol_version.
+   * @ingroup request
+   */
+  MHD_CONNECTION_INFO_TLS_PROTOCOL_VERSION,
+
+  /**
+   * Get the TLS-engine-specific session handle.
+   * It's made available in attribute #MHD_ConnectionInfo::tls_session.
+   * @ingroup request
+   */
+  MHD_CONNECTION_INFO_TLS_SESSION,
+
+  /**
+   * What cipher algorithm is being used.
+   * Takes no extra arguments.
+   * It's made available in attribute #MHD_ConnectionInfo::tls_cipher_algorithm.
+   * @ingroup request
+   */
+  MHD_CONNECTION_INFO_TLS_CIPHER_ALGO
 };
 
 
@@ -3343,6 +3679,13 @@ enum MHD_FEATURE
    * #MHD_OPTION_HTTPS_MEM_CERT, #MHD_OPTION_HTTPS_MEM_TRUST,
    * #MHD_OPTION_HTTPS_MEM_DHPARAMS, #MHD_OPTION_HTTPS_CRED_TYPE,
    * #MHD_OPTION_HTTPS_PRIORITIES can be used.
+   *
+   * For compatibility reasons, this call is equivalent to:
+   * @code
+   * MHD_TLS_is_feature_supported (MHD_TLS_ENGINE_TYPE_GNUTLS, MHD_TLS_FEATURE_ENGINE_AVAILABLE)
+   * @endcode
+   *
+   * @deprecated use TLS feature #MHD_TLS_FEATURE_ENGINE_AVAILABLE instead
    */
   MHD_FEATURE_TLS = 2,
   MHD_FEATURE_SSL = 2,
@@ -3350,6 +3693,13 @@ enum MHD_FEATURE
   /**
    * Get whether option #MHD_OPTION_HTTPS_CERT_CALLBACK is
    * supported.
+   *
+   * For compatibility reasons, this call is equivalent to:
+   * @code
+   * MHD_TLS_is_feature_supported (MHD_TLS_ENGINE_TYPE_GNUTLS, MHS_TLS_FEATURE_CERT_CALLBACK)
+   * @endcode
+   *
+   * @deprecated use TLS feature #MHD_TLS_FEATURE_CERT_CALLBACK instead
    */
   MHD_FEATURE_HTTPS_CERT_CALLBACK = 3,
 
@@ -3424,9 +3774,16 @@ enum MHD_FEATURE
   MHD_FEATURE_POSTPROCESSOR = 13,
 
   /**
-  * Get whether password encrypted private key for HTTPS daemon is
-  * supported. If supported then option
-  * ::MHD_OPTION_HTTPS_KEY_PASSWORD can be used.
+   * Get whether password encrypted private key for HTTPS daemon is
+   * supported. If supported then option
+   * ::MHD_OPTION_HTTPS_KEY_PASSWORD can be used.
+   *
+   * For compatibility reasons, this call is equivalent to:
+   * @code
+   * MHD_TLS_is_feature_supported(MHD_TLS_ENGINE_TYPE_GNUTLS, MHS_TLS_FEATURE_KEY_PASSWORD)
+   * @endcode
+   *
+   * @deprecated use TLS feature #MHD_TLS_FEATURE_KEY_PASSWORD instead
   */
   MHD_FEATURE_HTTPS_KEY_PASSWORD = 14,
 
@@ -3495,6 +3852,49 @@ enum MHD_FEATURE
 _MHD_EXTERN int
 MHD_is_feature_supported (enum MHD_FEATURE feature);
 
+
+/**
+ * Types of information about MHD TLS_features,
+ * used by #MHD_TLS_is_feature_supported().
+ */
+enum MHD_TLS_FEATURE
+{
+  /**
+   * Get whether the corresponding TLS engine is available.
+   *
+   * If available, flag #MHD_USE_TLS and options #MHD_OPTION_HTTPS_MEM_KEY,
+   * #MHD_OPTION_HTTPS_MEM_CERT, #MHD_OPTION_HTTPS_MEM_TRUST,
+   * #MHD_OPTION_HTTPS_MEM_DHPARAMS, #MHD_OPTION_TLS_PRIORITIES can be used.
+   */
+  MHD_TLS_FEATURE_ENGINE_AVAILABLE = 1,
+
+  /**
+   * Get whether the TLS engine supports option #MHD_OPTION_TLS_CERT_CALLBACK.
+   */
+  MHD_TLS_FEATURE_CERT_CALLBACK = 2,
+
+  /**
+   * Get whether the TLS engine supports option #MHD_OPTION_HTTPS_KEY_PASSWORD.
+   */
+  MHD_TLS_FEATURE_KEY_PASSWORD = 3
+};
+
+
+/**
+ * Get information about supported MHD TLS engine features.
+ * Indicate that MHD was compiled with or without support for
+ * particular feature. Some features require additional support
+ * by kernel. Kernel support is not checked by this function.
+ *
+ * @param engine_type TLS engine type
+ * @param feature type of requested information
+ * @return #MHD_YES if feature is supported by MHD, #MHD_NO if
+ * feature is not supported or feature is unknown.
+ * @ingroup specialized
+ */
+_MHD_EXTERN int
+MHD_TLS_is_feature_supported (enum MHD_TLS_EngineType engine_type,
+                              enum MHD_TLS_FEATURE feature);
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

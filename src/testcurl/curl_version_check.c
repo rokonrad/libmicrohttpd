@@ -132,7 +132,7 @@ curl_check_version (const char *req_version)
   if (ssl_ver == NULL)
     return -1;
   ssl_ver++;
-  if (strncmp ("GnuTLS", ssl_ver, strlen ("GNUtls")) == 0)
+  if (strncmp ("GnuTLS", ssl_ver, strlen ("GnuTLS")) == 0)
     {
       ssl_ver = strchr (ssl_ver, '/');
       req_ssl_ver = MHD_REQ_CURL_GNUTLS_VERSION;

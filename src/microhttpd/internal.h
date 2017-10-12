@@ -29,15 +29,9 @@
 
 #include "mhd_options.h"
 #include "platform.h"
+#include "tls.h"
 #include "microhttpd.h"
 #include "mhd_assert.h"
-
-#ifdef HTTPS_SUPPORT
-#include <gnutls/gnutls.h>
-#if GNUTLS_VERSION_MAJOR >= 3
-#include <gnutls/abstract.h>
-#endif
-#endif /* HTTPS_SUPPORT */
 
 #ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
@@ -957,8 +951,9 @@ struct MHD_Connection
   /**
    * State required for HTTPS/SSL/TLS support.
    */
-  gnutls_session_t tls_session;
+  struct MHD_TLS_Session * tls_session;
 
+#ifdef HAVE_GNUTLS
   /**
    * Memory location to return for protocol session info.
    */
@@ -968,6 +963,22 @@ struct MHD_Connection
    * Memory location to return for protocol session info.
    */
   int cipher;
+#endif /* HAVE_GNUTLS */
+
+  /**
+   * Memory location to return for protocol session info.
+   */
+  enum MHD_TLS_ProtocolVersion tls_protocol_version;
+
+  /**
+   * Memory location to return for protocol session info.
+   */
+  enum MHD_TLS_CipherAlgorithm tls_cipher_algorithm;
+
+  /**
+   * Memory location to return for protocol session info.
+   */
+  void *tls_specific_session;
 
   /**
    * State of connection's TLS layer
@@ -1596,33 +1607,20 @@ struct MHD_Daemon
 #endif /* UPGRADE_SUPPORT */
 
   /**
-   * Desired cipher algorithms.
+   * @brief TLS engine to use.
    */
-  gnutls_priority_t priority_cache;
+  enum MHD_TLS_EngineType tls_engine_type;
 
   /**
-   * What kind of credentials are we offering
-   * for SSL/TLS?
+   * TLS context.
    */
-  gnutls_credentials_type_t cred_type;
+  struct MHD_TLS_Context *tls_context;
 
   /**
-   * Server x509 credentials
+   * Function that can be used to obtain the certificate. Needed
+   * for SNI support. See #MHD_OPTION_HTTPS_CERT_CALLBACK.
    */
-  gnutls_certificate_credentials_t x509_cred;
-
-  /**
-   * Diffie-Hellman parameters
-   */
-  gnutls_dh_params_t dh_params;
-
-#if GNUTLS_VERSION_MAJOR >= 3
-  /**
-   * Function that can be used to obtain the certificate.  Needed
-   * for SNI support.  See #MHD_OPTION_HTTPS_CERT_CALLBACK.
-   */
-  gnutls_certificate_retrieve_function2 *cert_callback;
-#endif
+  MHD_TLS_GetCertificateCallback cert_callback;
 
   /**
    * Pointer to our SSL/TLS key (in ASCII) in memory.
@@ -1643,16 +1641,6 @@ struct MHD_Daemon
    * Pointer to our SSL/TLS certificate authority (in ASCII) in memory.
    */
   const char *https_mem_trust;
-
-  /**
-   * Our Diffie-Hellman parameters in memory.
-   */
-  gnutls_dh_params_t https_mem_dhparams;
-
-  /**
-   * true if we have initialized @e https_mem_dhparams.
-   */
-  bool have_dhparams;
 
 #endif /* HTTPS_SUPPORT */
 

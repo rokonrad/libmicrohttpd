@@ -32,7 +32,6 @@
 #include "memorypool.h"
 #include "response.h"
 #include "mhd_mono_clock.h"
-#include <gnutls/gnutls.h>
 
 
 /**
@@ -51,27 +50,28 @@ recv_tls_adapter (struct MHD_Connection *connection,
 {
   ssize_t res;
 
-  if (i > SSIZE_MAX)
-    i = SSIZE_MAX;
-
-  res = gnutls_record_recv (connection->tls_session,
-                            other,
-                            i);
-  if ( (GNUTLS_E_AGAIN == res) ||
-       (GNUTLS_E_INTERRUPTED == res) )
+  res = MHD_TLS_session_read (connection->tls_session,
+                              other,
+                              i);
+  if (MHD_TLS_IO_WANTS_READ == res)
     {
 #ifdef EPOLL_SUPPORT
-      if (GNUTLS_E_AGAIN == res)
-        connection->epoll_state &= ~MHD_EPOLL_STATE_READ_READY;
+      connection->epoll_state &= ~MHD_EPOLL_STATE_READ_READY;
 #endif
       /* Any network errors means that buffer is empty. */
       connection->tls_read_ready = false;
       return MHD_ERR_AGAIN_;
     }
+  if (MHD_TLS_IO_WANTS_WRITE == res)
+    {
+#ifdef EPOLL_SUPPORT
+      connection->epoll_state &= ~MHD_EPOLL_STATE_WRITE_READY;
+#endif
+      return MHD_ERR_AGAIN_;
+    }
   if (res < 0)
     {
-      /* Likely 'GNUTLS_E_INVALID_SESSION' (client communication
-         disrupted); interpret as a hard error */
+      /* Likely client communication disrupted; interpret as a hard error */
       connection->tls_read_ready = false;
       return MHD_ERR_NOTCONN_;
     }
@@ -84,7 +84,7 @@ recv_tls_adapter (struct MHD_Connection *connection,
 
   /* Check whether TLS buffers still have some unread data. */
   connection->tls_read_ready = ( ((size_t)res == i) &&
-                                 (0 != gnutls_record_check_pending (connection->tls_session)) );
+                                 (0 != MHD_TLS_session_read_pending (connection->tls_session)) );
   return res;
 }
 
@@ -105,25 +105,26 @@ send_tls_adapter (struct MHD_Connection *connection,
 {
   ssize_t res;
 
-  if (i > SSIZE_MAX)
-    i = SSIZE_MAX;
-
-  res = gnutls_record_send (connection->tls_session,
-                            other,
-                            i);
-  if ( (GNUTLS_E_AGAIN == res) ||
-       (GNUTLS_E_INTERRUPTED == res) )
+  res = MHD_TLS_session_write (connection->tls_session,
+                               other,
+                               i);
+  if (MHD_TLS_IO_WANTS_READ == res)
     {
 #ifdef EPOLL_SUPPORT
-      if (GNUTLS_E_AGAIN == res)
-        connection->epoll_state &= ~MHD_EPOLL_STATE_WRITE_READY;
+      connection->epoll_state &= ~MHD_EPOLL_STATE_READ_READY;
+#endif
+      return MHD_ERR_AGAIN_;
+    }
+  if (MHD_TLS_IO_WANTS_WRITE == res)
+    {
+#ifdef EPOLL_SUPPORT
+      connection->epoll_state &= ~MHD_EPOLL_STATE_WRITE_READY;
 #endif
       return MHD_ERR_AGAIN_;
     }
   if (res < 0)
     {
-      /* Likely 'GNUTLS_E_INVALID_SESSION' (client communication
-         disrupted); interpret as a hard error */
+      /* Likely client communication disrupted; interpret as a hard error */
       return MHD_ERR_NOTCONN_;
     }
 #ifdef EPOLL_SUPPORT
@@ -136,7 +137,7 @@ send_tls_adapter (struct MHD_Connection *connection,
 
 
 /**
- * Give gnuTLS chance to work on the TLS handshake.
+ * Give TLS engine a chance to work on the TLS handshake.
  *
  * @param connection connection to handshake on
  * @return true if the handshake has completed successfully
@@ -152,21 +153,21 @@ MHD_run_tls_handshake_ (struct MHD_Connection *connection)
   if ((MHD_TLS_CONN_INIT == connection->tls_state) ||
       (MHD_TLS_CONN_HANDSHAKING == connection->tls_state))
     {
-      ret = gnutls_handshake (connection->tls_session);
-      if (ret == GNUTLS_E_SUCCESS)
+      ret = MHD_TLS_session_handshake (connection->tls_session);
+      if (ret == 0)
 	{
 	  /* set connection TLS state to enable HTTP processing */
 	  connection->tls_state = MHD_TLS_CONN_CONNECTED;
 	  MHD_update_last_activity_ (connection);
 	  return true;
 	}
-      if ( (GNUTLS_E_AGAIN == ret) ||
-	   (GNUTLS_E_INTERRUPTED == ret) )
-	{
+      if ( (MHD_TLS_IO_WANTS_READ == ret) ||
+           (MHD_TLS_IO_WANTS_WRITE == ret) )
+        {
           connection->tls_state = MHD_TLS_CONN_HANDSHAKING;
-	  /* handshake not done */
-	  return false;
-	}
+          /* handshake not done */
+          return false;
+        }
       /* handshake failed */
       connection->tls_state = MHD_TLS_CONN_TLS_FAILED;
 #ifdef HAVE_MESSAGES
@@ -207,14 +208,14 @@ MHD_tls_connection_shutdown (struct MHD_Connection *connection)
   if (MHD_TLS_CONN_WR_CLOSED > connection->tls_state)
     {
       const int res =
-          gnutls_bye(connection->tls_session, GNUTLS_SHUT_WR);
-      if (GNUTLS_E_SUCCESS == res)
+          MHD_TLS_session_close (connection->tls_session);
+      if (0 == res)
         {
           connection->tls_state = MHD_TLS_CONN_WR_CLOSED;
           return true;
         }
-      if ((GNUTLS_E_AGAIN == res) ||
-          (GNUTLS_E_INTERRUPTED == res))
+      if ((MHD_TLS_IO_WANTS_READ == res) ||
+          (MHD_TLS_IO_WANTS_WRITE == res))
         {
           connection->tls_state = MHD_TLS_CONN_WR_CLOSING;
           return true;
