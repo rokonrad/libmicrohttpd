@@ -27,6 +27,41 @@
 #include "tls_test_keys.h"
 
 
+static const struct
+{
+  enum MHD_TLS_EngineType type;
+  const char *name;
+} tls_engines[MHD_TLS_ENGINE_TYPE_MAX] = {
+  { MHD_TLS_ENGINE_TYPE_GNUTLS, "GnuTLS" },
+  { MHD_TLS_ENGINE_TYPE_OPENSSL, "OpenSSL" }
+};
+
+
+int iterate_over_available_tls_engines (int index,
+                                        enum MHD_TLS_EngineType *type,
+                                        const char **name)
+{
+  if (index < 0)
+   return -1;
+
+  while (index < MHD_TLS_ENGINE_TYPE_MAX)
+    {
+      if (MHD_YES == MHD_TLS_is_feature_supported (tls_engines[index].type,
+                                                   MHD_TLS_FEATURE_ENGINE_AVAILABLE))
+        {
+          if (NULL != type)
+            *type = tls_engines[index].type;
+          if (NULL != name)
+            *name = tls_engines[index].name;
+          return ++index;
+        }
+      ++index;
+    }
+
+  return -1;
+}
+
+
 int curl_check_version (const char *req_version, ...);
 
 FILE *

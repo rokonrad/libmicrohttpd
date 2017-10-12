@@ -104,6 +104,9 @@ int
 main (int argc, char *const *argv)
 {
   int errorCount = 0;;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
   struct MHD_Daemon *d;
   gnutls_session_t session;
   gnutls_datum_t key;
@@ -125,39 +128,47 @@ main (int argc, char *const *argv)
   gnutls_global_init ();
   gnutls_global_set_log_level (11);
 
-  d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
-                        MHD_USE_ERROR_LOG, port,
-                        NULL, NULL, &http_dummy_ahc, NULL,
-                        MHD_OPTION_CONNECTION_TIMEOUT, TIME_OUT,
-                        MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
-                        MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-                        MHD_OPTION_END);
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
+                            MHD_USE_ERROR_LOG, port,
+                            NULL, NULL, &http_dummy_ahc, NULL,
+                            MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                            MHD_OPTION_CONNECTION_TIMEOUT, TIME_OUT,
+                            MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
+                            MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
+                            MHD_OPTION_END);
 
-  if (NULL == d)
-    {
-      fprintf (stderr, MHD_E_SERVER_INIT);
-      return -1;
-    }
-  if (0 == port)
-    {
-      const union MHD_DaemonInfo *dinfo;
-      dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
-      if (NULL == dinfo || 0 == dinfo->port)
-        { MHD_stop_daemon (d); return -1; }
-      port = (int)dinfo->port;
-    }
+      if (NULL == d)
+        {
+          fprintf (stderr, MHD_E_SERVER_INIT);
+          return -1;
+        }
+      if (0 == port)
+        {
+          const union MHD_DaemonInfo *dinfo;
+          dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
+          if (NULL == dinfo || 0 == dinfo->port)
+            { MHD_stop_daemon (d); return -1; }
+          port = (int)dinfo->port;
+        }
 
-  if (0 != setup_session (&session, &key, &cert, &xcred))
-    {
-      fprintf (stderr, "failed to setup session\n");
-      return 1;
+      if (0 != setup_session (&session, &key, &cert, &xcred))
+        {
+          fprintf (stderr, "failed to setup session\n");
+          return 1;
+        }
+      errorCount += test_tls_session_time_out (session, port);
+      teardown_session (session, &key, &cert, xcred);
+
+      MHD_stop_daemon (d);
     }
-  errorCount += test_tls_session_time_out (session, port);
-  teardown_session (session, &key, &cert, xcred);
 
   print_test_result (errorCount, argv[0]);
 
-  MHD_stop_daemon (d);
   gnutls_global_deinit ();
 
   return errorCount != 0 ? 1 : 0;

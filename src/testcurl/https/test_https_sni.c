@@ -32,19 +32,23 @@
 #include <gcrypt.h>
 #endif /* MHD_HTTPS_REQUIRE_GRYPT */
 #include "tls_test_common.h"
+#ifdef HAVE_GNUTLS
 #include <gnutls/gnutls.h>
-
-/* This test only works with GnuTLS >= 3.0 */
 #if GNUTLS_VERSION_MAJOR >= 3
-
 #include <gnutls/abstract.h>
+#endif /* GNUTLS_VERSION_MAJOR >= 3 */
+#endif /* HAVE_GNUTLS */
+#ifdef HAVE_OPENSSL
+#include <openssl/ssl.h>
+#endif /* HAVE_OPENSSL */
 
+#ifdef HAVE_GNUTLS
 /**
  * A hostname, server key and certificate.
  */
-struct Hosts
+struct GnuTLS_Hosts
 {
-  struct Hosts *next;
+  struct GnuTLS_Hosts *next;
   const char *hostname;
   gnutls_pcert_st pcrt;
   gnutls_privkey_t key;
@@ -54,26 +58,26 @@ struct Hosts
 /**
  * Linked list of supported TLDs and respective certificates.
  */
-static struct Hosts *hosts;
+static struct GnuTLS_Hosts *gnutls_hosts;
 
 /* Load the certificate and the private key.
  * (This code is largely taken from GnuTLS).
  */
 static void
-load_keys(const char *hostname,
-          const char *CERT_FILE,
-          const char *KEY_FILE)
+gnutls_load_keys(const char *hostname,
+                 const char *CERT_FILE,
+                 const char *KEY_FILE)
 {
   int ret;
   gnutls_datum_t data;
-  struct Hosts *host;
+  struct GnuTLS_Hosts *host;
 
-  host = malloc (sizeof (struct Hosts));
+  host = malloc (sizeof (struct GnuTLS_Hosts));
   if (NULL == host)
     abort ();
   host->hostname = hostname;
-  host->next = hosts;
-  hosts = host;
+  host->next = gnutls_hosts;
+  gnutls_hosts = host;
 
   ret = gnutls_load_file (CERT_FILE, &data);
   if (ret < 0)
@@ -120,7 +124,6 @@ load_keys(const char *hostname,
 }
 
 
-
 /**
  * @param session the session we are giving a cert for
  * @param req_ca_dn NULL on server side
@@ -132,19 +135,25 @@ load_keys(const char *hostname,
  * @param pkey the private key (to be set)
  */
 static int
-sni_callback (gnutls_session_t session,
-              const gnutls_datum_t* req_ca_dn,
-              int nreqs,
-              const gnutls_pk_algorithm_t* pk_algos,
-              int pk_algos_length,
-              gnutls_pcert_st** pcert,
-              unsigned int *pcert_length,
-              gnutls_privkey_t * pkey)
+gnutls_sni_callback (gnutls_session_t session,
+                     const gnutls_datum_t* req_ca_dn,
+                     int nreqs,
+                     const gnutls_pk_algorithm_t* pk_algos,
+                     int pk_algos_length,
+                     gnutls_pcert_st** pcert,
+                     unsigned int *pcert_length,
+                     gnutls_privkey_t * pkey)
 {
   char name[256];
   size_t name_len;
-  struct Hosts *host;
+  struct GnuTLS_Hosts *host;
   unsigned int type;
+
+  if (NULL == gnutls_hosts)
+    {
+      gnutls_load_keys ("host1", ABS_SRCDIR "/host1.crt", ABS_SRCDIR "/host1.key");
+      gnutls_load_keys ("host2", ABS_SRCDIR "/host2.crt", ABS_SRCDIR "/host2.key");
+    }
 
   name_len = sizeof (name);
   if (GNUTLS_E_SUCCESS !=
@@ -154,7 +163,7 @@ sni_callback (gnutls_session_t session,
                               &type,
                               0 /* index */))
     return -1;
-  for (host = hosts; NULL != host; host = host->next)
+  for (host = gnutls_hosts; NULL != host; host = host->next)
     if (0 == strncmp (name, host->hostname, name_len))
       break;
   if (NULL == host)
@@ -176,7 +185,43 @@ sni_callback (gnutls_session_t session,
   *pcert = &host->pcrt;
   return 0;
 }
+#endif /* HAVE_GNUTLS */
 
+#ifdef HAVE_OPENSSL
+/**
+ * @param ssl the session we are giving a cert for
+ * @param arg @c NULL
+ */
+static int
+openssl_sni_callback (SSL *ssl, void *arg)
+{
+#if 0
+  if (1 != SSL_use_certificate_file (ssl, ABS_SRCDIR "/host1.crt", SSL_FILETYPE_PEM))
+  return 1;
+#endif
+  const char *name;
+  char file[512];
+
+  /* Loading files on each connection is not efficient but enough for testing. */
+  name = SSL_get_servername (ssl, TLSEXT_NAMETYPE_host_name);
+  if (NULL == name)
+    {
+      fprintf (stderr,
+               "OpenSSL: cannot get SNI\n");
+      return 0;
+    }
+
+  snprintf (file, sizeof (file),  "%s/%s.crt", ABS_SRCDIR, name);
+  if (1 != SSL_use_certificate_file (ssl, file, SSL_FILETYPE_PEM))
+    return 0;
+
+  snprintf (file, sizeof (file),  "%s/%s.key", ABS_SRCDIR, name);
+  if (1 != SSL_use_PrivateKey_file (ssl, file, SSL_FILETYPE_PEM))
+    return 0;
+
+  return 1;
+}
+#endif /* HAVE_OPENSSL */
 
 /* perform a HTTP GET request via SSL/TLS */
 static int
@@ -218,6 +263,8 @@ do_get (const char *url, int port)
   dns_info = curl_slist_append (NULL, buf);
   sprintf(buf, "host2:%d:127.0.0.1", port);
   dns_info = curl_slist_append (dns_info, buf);
+  sprintf(buf, "host3:%d:127.0.0.1", port);
+  dns_info = curl_slist_append (dns_info, buf);
   curl_easy_setopt (c, CURLOPT_RESOLVE, dns_info);
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
 
@@ -253,8 +300,20 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int error_count = 0;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
   struct MHD_Daemon *d;
   int port;
+  const struct
+  {
+    enum MHD_TLS_EngineType type;
+    int (*cb) ();
+  } cb_by_engine[MHD_TLS_ENGINE_TYPE_MAX] =
+  {
+    { MHD_TLS_ENGINE_TYPE_GNUTLS, (int (*) ()) gnutls_sni_callback },
+    { MHD_TLS_ENGINE_TYPE_OPENSSL, (int (*) ()) openssl_sni_callback }
+  };
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
@@ -279,46 +338,65 @@ main (int argc, char *const *argv)
       return 77;
     }
 
-  load_keys ("host1", ABS_SRCDIR "/host1.crt", ABS_SRCDIR "/host1.key");
-  load_keys ("host2", ABS_SRCDIR "/host2.crt", ABS_SRCDIR "/host2.key");
-  d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
-                        port,
-                        NULL, NULL,
-                        &http_ahc, NULL,
-                        MHD_OPTION_HTTPS_CERT_CALLBACK, &sni_callback,
-                        MHD_OPTION_END);
-  if (d == NULL)
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
     {
-      fprintf (stderr, MHD_E_SERVER_INIT);
-      return -1;
-    }
-  if (0 == port)
-    {
-      const union MHD_DaemonInfo *dinfo;
-      dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
-      if (NULL == dinfo || 0 == dinfo->port)
-        { MHD_stop_daemon (d); return -1; }
-      port = (int)dinfo->port;
-    }
-  if (0 != do_get ("https://host1/", port))
-    error_count++;
-  if (0 != do_get ("https://host2/", port))
-    error_count++;
+      int i;
 
-  MHD_stop_daemon (d);
+      if (MHD_NO == MHD_TLS_is_feature_supported (tls_engine_type,
+                                                  MHD_TLS_FEATURE_CERT_CALLBACK))
+        {
+          fprintf (stderr,
+                   "TLS engine %s does not support feature MHD_TLS_FEATURE_CERT_CALLBACK\n",
+                   tls_engine_name);
+          continue;
+        }
+
+      for (i = 0; i < MHD_TLS_ENGINE_TYPE_MAX; ++i)
+        if (cb_by_engine[i].type == tls_engine_type)
+          break;
+      if (i >= MHD_TLS_ENGINE_TYPE_MAX)
+        {
+          fprintf (stderr,
+                   "No certificate callback for TLS engine %s\n",
+                   tls_engine_name);
+          error_count++;
+          continue;
+        }
+
+      d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
+                            port,
+                            NULL, NULL,
+                            &http_ahc, NULL,
+                            MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                            MHD_OPTION_HTTPS_CERT_CALLBACK, cb_by_engine[i].cb,
+                            MHD_OPTION_END);
+      if (d == NULL)
+        {
+          fprintf (stderr, MHD_E_SERVER_INIT);
+          return -1;
+        }
+      if (0 == port)
+        {
+          const union MHD_DaemonInfo *dinfo;
+          dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
+          if (NULL == dinfo || 0 == dinfo->port)
+            { MHD_stop_daemon (d); return -1; }
+          port = (int)dinfo->port;
+        }
+      if (0 != do_get ("https://host1/", port))
+        error_count++;
+      if (0 != do_get ("https://host2:4233/", port))
+        error_count++;
+      if (0 == do_get ("https://host3:4233/", port))
+        error_count++;
+
+      MHD_stop_daemon (d);
+    }
   curl_global_cleanup ();
   if (error_count != 0)
     fprintf (stderr, "Failed test: %s, error: %u.\n", argv[0], error_count);
   return (0 != error_count) ? 1 : 0;
 }
-
-
-#else
-
-int main ()
-{
-  fprintf (stderr,
-           "SNI not supported by GnuTLS < 3.0\n");
-  return 77;
-}
-#endif

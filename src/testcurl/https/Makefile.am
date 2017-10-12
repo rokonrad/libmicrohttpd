@@ -136,11 +136,12 @@ test_https_sni_SOURCES = \
   tls_test_common.c
 test_https_sni_CPPFLAGS = \
   $(AM_CPPFLAGS) \
+  $(OPENSSL_CFLAGS) \
   -DABS_SRCDIR=\"$(abs_srcdir)\"
 test_https_sni_LDADD  = \
   $(top_builddir)/src/testcurl/libcurl_version_check.a \
   $(top_builddir)/src/microhttpd/libmicrohttpd.la \
-  $(GNUTLS_LDFLAGS) $(GNUTLS_LIBS) @LIBGCRYPT_LIBS@ @LIBCURL@
+  $(GNUTLS_LDFLAGS) $(GNUTLS_LIBS) $(OPENSSL_LIBS) @LIBGCRYPT_LIBS@ @LIBCURL@
 endif
 
 test_https_get_select_SOURCES = \

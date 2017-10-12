@@ -989,7 +989,8 @@ static bool test_tls;
  */
 static int
 test_upgrade (int flags,
-              unsigned int pool)
+              unsigned int pool,
+              enum MHD_TLS_EngineType tls_engine_type)
 {
   struct MHD_Daemon *d = NULL;
   wr_socket sock;
@@ -1023,6 +1024,7 @@ test_upgrade (int flags,
                           MHD_OPTION_URI_LOG_CALLBACK, &log_cb, NULL,
                           MHD_OPTION_NOTIFY_COMPLETED, &notify_completed_cb, NULL,
                           MHD_OPTION_NOTIFY_CONNECTION, &notify_connection_cb, NULL,
+                          MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
                           MHD_OPTION_HTTPS_MEM_KEY, srv_signed_key_pem,
                           MHD_OPTION_HTTPS_MEM_CERT, srv_signed_cert_pem,
                           MHD_OPTION_THREAD_POOL_SIZE, pool,
@@ -1092,6 +1094,16 @@ main (int argc,
 {
   int error_count = 0;
   int res;
+  struct
+  {
+    enum MHD_TLS_EngineType type;
+    const char *name;
+  } tls_engines[] = {
+    { MHD_TLS_ENGINE_TYPE_GNUTLS, "GnuTLS" },
+    { MHD_TLS_ENGINE_TYPE_OPENSSL, "OpenSSL" },
+    { MHD_TLS_ENGINE_TYPE_NONE, NULL }
+  };
+  size_t tls_engine_idx;
 
   use_tls_tool = TLS_CLI_NO_TOOL;
   test_tls = has_in_name(argv[0], "_tls");
@@ -1151,124 +1163,163 @@ main (int argc,
     }
 
   /* run tests */
-  if (verbose)
-    printf ("Starting HTTP \"Upgrade\" tests with %s connections.\n", test_tls ? "TLS" : "plain");
-  /* try external select */
-  res = test_upgrade (0,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with external select, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with external select.\n");
+  tls_engine_idx = 0;
+  while (1)
+    {
+      if (test_tls)
+        {
+          if (MHD_TLS_ENGINE_TYPE_NONE == tls_engines[tls_engine_idx].type)
+            break;
+          if (MHD_NO == MHD_TLS_is_feature_supported (tls_engines[tls_engine_idx].type,
+                                                      MHD_TLS_FEATURE_ENGINE_AVAILABLE))
+            {
+              tls_engine_idx++;
+              continue;
+            }
+        }
+      if (verbose)
+        printf ("Starting HTTP \"Upgrade\" tests with %s connections%s%s%s.\n",
+                test_tls ? "TLS" : "plain",
+                test_tls ? " (" : "",
+                test_tls ? tls_engines[tls_engine_idx].name : "",
+                test_tls ? ")" : "");
+      /* try external select */
+      res = test_upgrade (0,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with external select, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with external select.\n");
 
-  /* Try external auto */
-  res = test_upgrade (MHD_USE_AUTO,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with external 'auto', return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with external 'auto'.\n");
+      /* Try external auto */
+      res = test_upgrade (MHD_USE_AUTO,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with external 'auto', return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with external 'auto'.\n");
 
 #ifdef EPOLL_SUPPORT
-  res = test_upgrade (MHD_USE_EPOLL,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with external select with EPOLL, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with external select with EPOLL.\n");
+      res = test_upgrade (MHD_USE_EPOLL,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with external select with EPOLL, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with external select with EPOLL.\n");
 #endif
 
-  /* Test thread-per-connection */
-  res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with thread per connection, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with thread per connection.\n");
+      /* Test thread-per-connection */
+      res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with thread per connection, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with thread per connection.\n");
 
-  res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with thread per connection and 'auto', return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with thread per connection and 'auto'.\n");
+      res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with thread per connection and 'auto', return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with thread per connection and 'auto'.\n");
 #ifdef HAVE_POLL
-  res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION | MHD_USE_POLL,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with thread per connection and poll, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with thread per connection and poll.\n");
+      res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_THREAD_PER_CONNECTION | MHD_USE_POLL,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with thread per connection and poll, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with thread per connection and poll.\n");
 #endif /* HAVE_POLL */
 
-  /* Test different event loops, with and without thread pool */
-  res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal select, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal select.\n");
-  res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD,
-                      2);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal select with thread pool, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal select with thread pool.\n");
-  res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal 'auto' return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal 'auto'.\n");
-  res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD,
-                      2);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal 'auto' with thread pool, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal 'auto' with thread pool.\n");
+      /* Test different event loops, with and without thread pool */
+      res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal select, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal select.\n");
+      res = test_upgrade (MHD_USE_INTERNAL_POLLING_THREAD,
+                          2,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal select with thread pool, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal select with thread pool.\n");
+      res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal 'auto' return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal 'auto'.\n");
+      res = test_upgrade (MHD_USE_AUTO | MHD_USE_INTERNAL_POLLING_THREAD,
+                          2,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal 'auto' with thread pool, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal 'auto' with thread pool.\n");
 #ifdef HAVE_POLL
-  res = test_upgrade (MHD_USE_POLL_INTERNAL_THREAD,
-                      0);
-  error_count += res;
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal poll, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal poll.\n");
-  res = test_upgrade (MHD_USE_POLL_INTERNAL_THREAD,
-                      2);
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal poll with thread pool, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal poll with thread pool.\n");
+      res = test_upgrade (MHD_USE_POLL_INTERNAL_THREAD,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal poll, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal poll.\n");
+      res = test_upgrade (MHD_USE_POLL_INTERNAL_THREAD,
+                          2,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal poll with thread pool, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal poll with thread pool.\n");
 #endif
 #ifdef EPOLL_SUPPORT
-  res = test_upgrade (MHD_USE_EPOLL_INTERNAL_THREAD,
-                      0);
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal epoll, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal epoll.\n");
-  res = test_upgrade (MHD_USE_EPOLL_INTERNAL_THREAD,
-                      2);
-  if (res)
-    fprintf (stderr, "FAILED: Upgrade with internal epoll, return code %d.\n", res);
-  else if (verbose)
-    printf ("PASSED: Upgrade with internal epoll.\n");
+      res = test_upgrade (MHD_USE_EPOLL_INTERNAL_THREAD,
+                          0,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal epoll, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal epoll.\n");
+      res = test_upgrade (MHD_USE_EPOLL_INTERNAL_THREAD,
+                          2,
+                          test_tls ? tls_engines[tls_engine_idx].type : MHD_TLS_ENGINE_TYPE_NONE);
+      error_count += res;
+      if (res)
+        fprintf (stderr, "FAILED: Upgrade with internal epoll, return code %d.\n", res);
+      else if (verbose)
+        printf ("PASSED: Upgrade with internal epoll.\n");
 #endif
+      if (!test_tls)
+        break;
+      tls_engine_idx++;
+    }
   /* report result */
   if (0 != error_count)
     fprintf (stderr,
-             "Error (code: %u)\n",
+             "Error (code: %d)\n",
              error_count);
 #if defined(HTTPS_SUPPORT) && defined(HAVE_GNUTLS)
   if (test_tls && (TLS_LIB_GNUTLS == use_tls_tool))

@@ -5,7 +5,7 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/src/include \
   -DDATA_DIR=\"$(top_srcdir)/src/datadir/\"
 
-AM_CFLAGS = @LIBGCRYPT_CFLAGS@
+AM_CFLAGS =
 
 CPU_COUNT_DEF = -DCPU_COUNT=$(CPU_COUNT)
 
@@ -182,7 +182,5 @@ fileserver_example_external_select_LDADD = \
 
 https_fileserver_example_SOURCES = \
 https_fileserver_example.c
-https_fileserver_example_CPPFLAGS = \
- $(AM_CPPFLAGS) $(GNUTLS_CPPFLAGS)
 https_fileserver_example_LDADD = \
  $(top_builddir)/src/microhttpd/libmicrohttpd.la

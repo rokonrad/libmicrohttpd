@@ -44,8 +44,9 @@ extern const char srv_self_signed_cert_pem[];
  */
 static int
 test_concurent_daemon_pair (void *cls, 
-			    const char *cipher_suite,
-                            int proto_version)
+                            const char *cipher_suite,
+                            int proto_version,
+                            enum MHD_TLS_EngineType tls_engine_type)
 {
   int ret;
   struct MHD_Daemon *d1;
@@ -63,6 +64,7 @@ test_concurent_daemon_pair (void *cls,
   d1 = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
                          MHD_USE_ERROR_LOG, port1,
                          NULL, NULL, &http_ahc, NULL,
+                         MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
                          MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
                          MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
                          MHD_OPTION_END);
@@ -84,6 +86,7 @@ test_concurent_daemon_pair (void *cls,
   d2 = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
                          MHD_USE_ERROR_LOG, port2,
                          NULL, NULL, &http_ahc, NULL,
+                         MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
                          MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
                          MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
                          MHD_OPTION_END);
@@ -125,6 +128,9 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
   FILE *cert;
   const char *aes256_sha = "AES256-SHA";
 
@@ -158,8 +164,14 @@ main (int argc, char *const *argv)
       aes256_sha = "rsa_aes_256_sha";
     }
 
-  errorCount +=
-    test_concurent_daemon_pair (NULL, aes256_sha, CURL_SSLVERSION_TLSv1);
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      errorCount +=
+        test_concurent_daemon_pair (NULL, aes256_sha, CURL_SSLVERSION_TLSv1, tls_engine_type);
+    }
 
   print_test_result (errorCount, "concurent_daemon_pair");
 

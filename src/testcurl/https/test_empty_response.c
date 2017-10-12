@@ -61,7 +61,7 @@ ahc_echo (void *cls,
 
 
 static int
-testInternalSelectGet ()
+testInternalSelectGet (enum MHD_TLS_EngineType tls_engine_type)
 {
   struct MHD_Daemon *d;
   CURL *c;
@@ -90,9 +90,10 @@ testInternalSelectGet ()
   cbc.pos = 0;
   d = MHD_start_daemon (MHD_USE_ERROR_LOG | MHD_USE_TLS | MHD_USE_INTERNAL_POLLING_THREAD,
                         port, NULL, NULL, &ahc_echo, "GET",
+                        MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
                         MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
                         MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-			MHD_OPTION_END);
+                        MHD_OPTION_END);
   if (d == NULL)
     return 256;
 
@@ -214,6 +215,9 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
 
   if (0 != curl_global_init (CURL_GLOBAL_ALL))
     {
@@ -226,8 +230,19 @@ main (int argc, char *const *argv)
       curl_global_cleanup ();
       return 77;
     }
-  if (0 != (errorCount = testInternalSelectGet ()))
-    fprintf (stderr, "Failed test: %s, error: %u.\n", argv[0], errorCount);
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      unsigned int result;
+      result = testInternalSelectGet (tls_engine_type);
+      if (0 != result)
+        fprintf (stderr, "Failed test: %s, engine:%s.\n", argv[0], tls_engine_name);
+      errorCount += result;
+    }
+    if (0 != errorCount)
+      fprintf (stderr, "Failed test: %s, error: %u.\n", argv[0], errorCount);
   curl_global_cleanup ();
   return errorCount != 0 ? 1 : 0;
 }

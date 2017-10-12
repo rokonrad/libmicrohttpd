@@ -36,6 +36,16 @@
 extern const char srv_key_pem[];
 extern const char srv_self_signed_cert_pem[];
 
+static const struct
+{
+  enum MHD_TLS_EngineType type;
+  const char *priorities;
+} priorities_by_engine[MHD_TLS_ENGINE_TYPE_MAX] =
+{
+  { MHD_TLS_ENGINE_TYPE_GNUTLS, "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+RSA:+COMP-NULL" },
+  { MHD_TLS_ENGINE_TYPE_OPENSSL, "AES128-SHA" }
+};
+
 int curl_check_version (const char *req_version, ...);
 
 /**
@@ -90,6 +100,9 @@ main (int argc, char *const *argv)
   int daemon_flags =
     MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG;
   int port;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
@@ -133,34 +146,66 @@ main (int argc, char *const *argv)
       aes256_sha = "rsa_aes_256_sha";
     }
 
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      char test_name[256];
+      const char *priorities;
+      int i;
 
-  if (0 !=
-    test_wrap ("TLS1.0-AES-SHA1",
-	       &test_https_transfer, NULL, port, daemon_flags,
-	       aes128_sha,
-	       CURL_SSLVERSION_TLSv1,
-	       MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
-	       MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-	       MHD_OPTION_HTTPS_PRIORITIES, "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+RSA:+COMP-NULL",
-	       MHD_OPTION_END))
-    {
-      fprintf (stderr, "TLS1.0-AES-SHA1 test failed\n");
-      errorCount++;
-    }
-  fprintf (stderr,
-	   "The following handshake should fail (and print an error message)...\n");
-  if (0 !=
-    test_wrap ("TLS1.0 vs SSL3",
-	       &test_unmatching_ssl_version, NULL, port, daemon_flags,
-	       aes256_sha,
-	       CURL_SSLVERSION_SSLv3,
-	       MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
-	       MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-	       MHD_OPTION_HTTPS_PRIORITIES, "NONE:+VERS-TLS1.0:+AES-256-CBC:+SHA1:+RSA:+COMP-NULL",
-	       MHD_OPTION_END))
-    {
-      fprintf (stderr, "TLS1.0 vs SSL3 test failed\n");
-      errorCount++;
+      for (i = 0; i < MHD_TLS_ENGINE_TYPE_MAX; ++i)
+        if (priorities_by_engine[i].type == tls_engine_type)
+          break;
+      if (i >= MHD_TLS_ENGINE_TYPE_MAX)
+        {
+          fprintf (stderr,
+                   "No definition of HTTPS priorities for TLS engine %s\n",
+                   tls_engine_name);
+          errorCount++;
+          continue;
+        }
+      priorities = priorities_by_engine[i].priorities;
+
+      snprintf (test_name,
+                sizeof(test_name),
+                "TLS1.0-AES-SHA1 (%s)",
+                tls_engine_name);
+      if (0 !=
+        test_wrap (test_name,
+             &test_https_transfer, NULL, port, daemon_flags,
+             aes128_sha,
+             CURL_SSLVERSION_TLSv1,
+             MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+             MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
+             MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
+             MHD_OPTION_HTTPS_PRIORITIES, priorities,
+             MHD_OPTION_END))
+        {
+          fprintf (stderr, "TLS1.0-AES-SHA1 test failed\n");
+          errorCount++;
+        }
+      fprintf (stderr,
+         "The following handshake should fail (and print an error message)...\n");
+      snprintf (test_name,
+                sizeof(test_name),
+                "TLS1.0 vs SSL3 (%s)",
+                tls_engine_name);
+      if (0 !=
+        test_wrap (test_name,
+             &test_unmatching_ssl_version, NULL, port, daemon_flags,
+             aes256_sha,
+             CURL_SSLVERSION_SSLv3,
+             MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+             MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
+             MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
+             MHD_OPTION_HTTPS_PRIORITIES, priorities,
+             MHD_OPTION_END))
+        {
+          fprintf (stderr, "TLS1.0 vs SSL3 test failed\n");
+          errorCount++;
+        }
     }
   curl_global_cleanup ();
 

@@ -35,10 +35,6 @@
 #include "platform.h"
 #include <microhttpd.h>
 #include <sys/stat.h>
-#include <gnutls/gnutls.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
-#include <gcrypt.h>
-#endif
 
 #define BUF_SIZE 1024
 #define MAX_URL_LEN 255

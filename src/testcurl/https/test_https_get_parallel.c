@@ -136,6 +136,9 @@ int
 main (int argc, char *const *argv)
 {  
   unsigned int errorCount = 0;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
   const char *aes256_sha = "AES256-SHA";
   int port;
 
@@ -160,38 +163,71 @@ main (int argc, char *const *argv)
     }
   if (curl_uses_nss_ssl() == 0)
     aes256_sha = "rsa_aes_256_sha";
+
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      char test_name[256];
+
 #ifdef EPOLL_SUPPORT
-  errorCount +=
-    test_wrap ("single threaded daemon, single client, epoll", &test_single_client,
-               NULL, port,
-               MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG | MHD_USE_EPOLL,
-               aes256_sha, CURL_SSLVERSION_TLSv1, MHD_OPTION_HTTPS_MEM_KEY,
-               srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
-               srv_self_signed_cert_pem, MHD_OPTION_END);
+      snprintf (test_name,
+                sizeof(test_name),
+                "single threaded daemon, single client, epoll (%s)",
+                tls_engine_name);
+      errorCount +=
+        test_wrap (test_name, &test_single_client,
+                   NULL, port,
+                   MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG | MHD_USE_EPOLL,
+                   aes256_sha, CURL_SSLVERSION_TLSv1,
+                   MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                   MHD_OPTION_HTTPS_MEM_KEY,
+                   srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
+                   srv_self_signed_cert_pem, MHD_OPTION_END);
 #endif
-  errorCount +=
-    test_wrap ("single threaded daemon, single client", &test_single_client,
-               NULL, port,
-               MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
-               aes256_sha, CURL_SSLVERSION_TLSv1, MHD_OPTION_HTTPS_MEM_KEY,
-               srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
-               srv_self_signed_cert_pem, MHD_OPTION_END);
+      snprintf (test_name,
+                sizeof(test_name),
+                "single threaded daemon, single client (%s)",
+                tls_engine_name);
+      errorCount +=
+        test_wrap (test_name, &test_single_client,
+                   NULL, port,
+                   MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
+                   aes256_sha, CURL_SSLVERSION_TLSv1,
+                   MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                   MHD_OPTION_HTTPS_MEM_KEY,
+                   srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
+                   srv_self_signed_cert_pem, MHD_OPTION_END);
 #ifdef EPOLL_SUPPORT
-  errorCount +=
-    test_wrap ("single threaded daemon, parallel clients, epoll",
-               &test_parallel_clients, NULL, port,
-               MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG | MHD_USE_EPOLL,
-               aes256_sha, CURL_SSLVERSION_TLSv1, MHD_OPTION_HTTPS_MEM_KEY,
-               srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
-               srv_self_signed_cert_pem, MHD_OPTION_END);
+      snprintf (test_name,
+                sizeof(test_name),
+                "single threaded daemon, parallel clients, epoll (%s)",
+                tls_engine_name);
+      errorCount +=
+        test_wrap (test_name,
+                   &test_parallel_clients, NULL, port,
+                   MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG | MHD_USE_EPOLL,
+                   aes256_sha, CURL_SSLVERSION_TLSv1,
+                   MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                   MHD_OPTION_HTTPS_MEM_KEY,
+                   srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
+                   srv_self_signed_cert_pem, MHD_OPTION_END);
 #endif
-  errorCount +=
-    test_wrap ("single threaded daemon, parallel clients",
-               &test_parallel_clients, NULL, port,
-               MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
-               aes256_sha, CURL_SSLVERSION_TLSv1, MHD_OPTION_HTTPS_MEM_KEY,
-               srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
-               srv_self_signed_cert_pem, MHD_OPTION_END);
+      snprintf (test_name,
+                sizeof(test_name),
+                "single threaded daemon, parallel clients (%s)",
+                tls_engine_name);
+      errorCount +=
+        test_wrap (test_name,
+                   &test_parallel_clients, NULL, port,
+                   MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS | MHD_USE_ERROR_LOG,
+                   aes256_sha, CURL_SSLVERSION_TLSv1,
+                   MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                   MHD_OPTION_HTTPS_MEM_KEY,
+                   srv_key_pem, MHD_OPTION_HTTPS_MEM_CERT,
+                   srv_self_signed_cert_pem, MHD_OPTION_END);
+    }
 
   curl_global_cleanup ();
   if (errorCount != 0)

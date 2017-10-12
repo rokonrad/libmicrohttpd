@@ -207,6 +207,9 @@ int
 main (int argc, char *const *argv)
 {
   int i, errorCount = 0;
+  int tls_engine_index;
+  enum MHD_TLS_EngineType tls_engine_type;
+  const char *tls_engine_name;
   FILE *test_fd;
   struct MHD_Daemon *d;
   gnutls_session_t session;
@@ -244,54 +247,61 @@ main (int argc, char *const *argv)
       return -1;
     }
 
-  d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
-                        MHD_USE_ERROR_LOG, port,
-                        NULL, NULL, &http_ahc, NULL,
-                        MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
-                        MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-                        MHD_OPTION_END);
+  tls_engine_index = 0;
+  while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,
+                                                                      &tls_engine_type,
+                                                                      &tls_engine_name)))
+    {
+      d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
+                            MHD_USE_ERROR_LOG, port,
+                            NULL, NULL, &http_ahc, NULL,
+                            MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
+                            MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
+                            MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
+                            MHD_OPTION_END);
 
-  if (d == NULL)
-    {
-      fprintf (stderr, "%s\n", MHD_E_SERVER_INIT);
-      return -1;
-    }
-  if (0 == port)
-    {
-      const union MHD_DaemonInfo *dinfo;
-      dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
-      if (NULL == dinfo || 0 == dinfo->port)
-        { MHD_stop_daemon (d); return -1; }
-      port = (int)dinfo->port;
-    }
+      if (d == NULL)
+        {
+          fprintf (stderr, "%s\n", MHD_E_SERVER_INIT);
+          return -1;
+        }
+      if (0 == port)
+        {
+          const union MHD_DaemonInfo *dinfo;
+          dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
+          if (NULL == dinfo || 0 == dinfo->port)
+            { MHD_stop_daemon (d); return -1; }
+          port = (int)dinfo->port;
+        }
 
-  i = 0;
-  setup_session (&session, &key, &cert, &xcred);
-  errorCount += test_hello_extension (session, port, ext_arr[i], 1, 16);
-  teardown_session (session, &key, &cert, xcred);
-#if 1
-  i = 0;
-  while (ext_arr[i] != -1)
-    {
+      i = 0;
       setup_session (&session, &key, &cert, &xcred);
       errorCount += test_hello_extension (session, port, ext_arr[i], 1, 16);
       teardown_session (session, &key, &cert, xcred);
+#if 1
+      i = 0;
+      while (ext_arr[i] != -1)
+        {
+          setup_session (&session, &key, &cert, &xcred);
+          errorCount += test_hello_extension (session, ext_arr[i], 1, 16);
+          teardown_session (session, &key, &cert, xcred);
 
-      setup_session (&session, &key, &cert, &xcred);
-      errorCount += test_hello_extension (session, port, ext_arr[i], 3, 8);
-      teardown_session (session, &key, &cert, xcred);
+          setup_session (&session, &key, &cert, &xcred);
+          errorCount += test_hello_extension (session, ext_arr[i], 3, 8);
+          teardown_session (session, &key, &cert, xcred);
 
-      /* this test specifically tests the issue raised in CVE-2008-1948 */
-      setup_session (&session, &key, &cert, &xcred);
-      errorCount += test_hello_extension (session, port, ext_arr[i], 6, 0);
-      teardown_session (session, &key, &cert, xcred);
-      i++;
-    }
+          /* this test specifically tests the issue raised in CVE-2008-1948 */
+          setup_session (&session, &key, &cert, &xcred);
+          errorCount += test_hello_extension (session, ext_arr[i], 6, 0);
+          teardown_session (session, &key, &cert, xcred);
+          i++;
+        }
 #endif
 
-  print_test_result (errorCount, argv[0]);
+      MHD_stop_daemon (d);
+    }
 
-  MHD_stop_daemon (d);
+  print_test_result (errorCount, argv[0]);
 
   curl_global_cleanup ();
   fclose (test_fd);
