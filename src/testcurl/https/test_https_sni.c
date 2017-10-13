@@ -195,10 +195,6 @@ gnutls_sni_callback (gnutls_session_t session,
 static int
 openssl_sni_callback (SSL *ssl, void *arg)
 {
-#if 0
-  if (1 != SSL_use_certificate_file (ssl, ABS_SRCDIR "/host1.crt", SSL_FILETYPE_PEM))
-  return 1;
-#endif
   const char *name;
   char file[512];
 
