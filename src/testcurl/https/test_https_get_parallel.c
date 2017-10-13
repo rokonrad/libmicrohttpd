@@ -31,9 +31,9 @@
 #include <limits.h>
 #include <curl/curl.h>
 #include <pthread.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #include <gcrypt.h>
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
 #if defined(CPU_COUNT) && (CPU_COUNT+0) < 4

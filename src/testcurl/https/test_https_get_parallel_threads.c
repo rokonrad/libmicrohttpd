@@ -33,9 +33,9 @@
 #include <limits.h>
 #include <curl/curl.h>
 #include <pthread.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #include <gcrypt.h>
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
 #if defined(CPU_COUNT) && (CPU_COUNT+0) < 4
@@ -151,11 +151,11 @@ main (int argc, char *const *argv)
   /* initialize random seed used by curl clients */
   unsigned int iseed = (unsigned int) time (NULL);
 
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #ifdef GCRYCTL_INITIALIZATION_FINISHED
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
   srand (iseed);
   if (0 != curl_global_init (CURL_GLOBAL_ALL))
     {

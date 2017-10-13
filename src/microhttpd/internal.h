@@ -953,7 +953,7 @@ struct MHD_Connection
    */
   struct MHD_TLS_Session * tls_session;
 
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
   /**
    * Memory location to return for protocol session info.
    */
@@ -963,7 +963,7 @@ struct MHD_Connection
    * Memory location to return for protocol session info.
    */
   int cipher;
-#endif /* HAVE_GNUTLS */
+#endif /* ENABLE_GNUTLS */
 
   /**
    * Memory location to return for protocol session info.

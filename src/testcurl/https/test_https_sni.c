@@ -28,21 +28,21 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <curl/curl.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #include <gcrypt.h>
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
 #include <gnutls/gnutls.h>
 #if GNUTLS_VERSION_MAJOR >= 3
 #include <gnutls/abstract.h>
 #endif /* GNUTLS_VERSION_MAJOR >= 3 */
-#endif /* HAVE_GNUTLS */
-#ifdef HAVE_OPENSSL
+#endif /* ENABLE_GNUTLS */
+#ifdef ENABLE_OPENSSL
 #include <openssl/ssl.h>
-#endif /* HAVE_OPENSSL */
+#endif /* ENABLE_OPENSSL */
 
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
 /**
  * A hostname, server key and certificate.
  */
@@ -185,9 +185,9 @@ gnutls_sni_callback (gnutls_session_t session,
   *pcert = &host->pcrt;
   return 0;
 }
-#endif /* HAVE_GNUTLS */
+#endif /* ENABLE_GNUTLS */
 
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
 /**
  * @param ssl the session we are giving a cert for
  * @param arg @c NULL
@@ -221,7 +221,7 @@ openssl_sni_callback (SSL *ssl, void *arg)
 
   return 1;
 }
-#endif /* HAVE_OPENSSL */
+#endif /* ENABLE_OPENSSL */
 
 /* perform a HTTP GET request via SSL/TLS */
 static int
@@ -311,8 +311,12 @@ main (int argc, char *const *argv)
     int (*cb) ();
   } cb_by_engine[MHD_TLS_ENGINE_TYPE_MAX] =
   {
+#ifdef ENABLE_GNUTLS
     { MHD_TLS_ENGINE_TYPE_GNUTLS, (int (*) ()) gnutls_sni_callback },
-    { MHD_TLS_ENGINE_TYPE_OPENSSL, (int (*) ()) openssl_sni_callback }
+#endif
+#ifdef ENABLE_OPENSSL
+    { MHD_TLS_ENGINE_TYPE_OPENSSL, (int (*) ()) openssl_sni_callback },
+#endif
   };
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
@@ -320,12 +324,12 @@ main (int argc, char *const *argv)
   else
     port = 3060;
 
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
 #ifdef GCRYCTL_INITIALIZATION_FINISHED
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
   if (0 != curl_global_init (CURL_GLOBAL_ALL))
     {
       fprintf (stderr, "Error: %s\n", strerror (errno));

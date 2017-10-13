@@ -29,9 +29,9 @@
 #include <curl/curl.h>
 #include <limits.h>
 #include <sys/stat.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #include <gcrypt.h>
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
 extern int curl_check_version (const char *req_version, ...);
@@ -95,12 +95,12 @@ main (int argc, char *const *argv)
   const char *tls_engine_name;
   char *aes256_sha = "AES256-SHA";
 
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
 #ifdef GCRYCTL_INITIALIZATION_FINISHED
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
   if (0 != curl_global_init (CURL_GLOBAL_ALL))
     {
       fprintf (stderr, "Error (code: %u)\n", errorCount);

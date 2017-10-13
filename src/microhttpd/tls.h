@@ -144,11 +144,11 @@ enum MHD_TLS_ClientCertificateMode
 
 /** @} */
 
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
 #include "tls_gnutls.h"
 #endif
 
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
 #include "tls_openssl.h"
 #endif
 
@@ -489,10 +489,10 @@ struct MHD_TLS_Context
    */
   union
   {
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
     struct MHD_GnuTLS_Context gnutls;
 #endif
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
     struct MHD_OpenSSL_Context openssl;
 #endif
   } d;
@@ -525,10 +525,10 @@ struct MHD_TLS_Session
    */
   union
   {
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
     struct MHD_GnuTLS_Session gnutls;
 #endif
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
     struct MHD_OpenSSL_Session openssl;
 #endif
   } d;

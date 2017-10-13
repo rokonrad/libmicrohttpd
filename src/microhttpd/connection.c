@@ -3756,7 +3756,7 @@ MHD_get_connection_info (struct MHD_Connection *connection,
     {
 #ifdef HTTPS_SUPPORT
     case MHD_CONNECTION_INFO_CIPHER_ALGO:
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
       if (NULL == connection->tls_session)
         return NULL;
       if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)
@@ -3767,7 +3767,7 @@ MHD_get_connection_info (struct MHD_Connection *connection,
       return NULL;
 #endif
     case MHD_CONNECTION_INFO_PROTOCOL:
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
       if (NULL == connection->tls_session)
         return NULL;
       if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)
@@ -3778,7 +3778,7 @@ MHD_get_connection_info (struct MHD_Connection *connection,
       return NULL;
 #endif
     case MHD_CONNECTION_INFO_GNUTLS_SESSION:
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
       if (NULL == connection->tls_session)
         return NULL;
       if (connection->tls_session->context->engine->type != MHD_TLS_ENGINE_TYPE_GNUTLS)

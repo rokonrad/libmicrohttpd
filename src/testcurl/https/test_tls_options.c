@@ -28,9 +28,9 @@
 #include "microhttpd.h"
 #include <sys/stat.h>
 #include <limits.h>
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #include <gcrypt.h>
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
 extern const char srv_key_pem[];
@@ -109,13 +109,13 @@ main (int argc, char *const *argv)
   else
     port = 3010;
 
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_DISABLE_SECMEM, 0);
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
 #ifdef GCRYCTL_INITIALIZATION_FINISHED
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
  if (curl_check_version (MHD_REQ_CURL_VERSION))
     {
       return 77;

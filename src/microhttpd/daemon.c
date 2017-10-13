@@ -4755,7 +4755,7 @@ parse_options_va (struct MHD_Daemon *daemon,
                                             const char *);
           break;
         case MHD_OPTION_HTTPS_CRED_TYPE:
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
           {
             gnutls_credentials_type_t cred_type;
 
@@ -4788,7 +4788,7 @@ parse_options_va (struct MHD_Daemon *daemon,
                 return MHD_NO;
               }
           }
-#else /* !HAVE_GNUTLS */
+#else /* !ENABLE_GNUTLS */
           MHD_DLOG (daemon,
                     _("MHD_OPTION_HTTPS_CRED_TYPE option passed but no support for GnuTLS\n"));
           return MHD_NO;
@@ -4992,18 +4992,18 @@ parse_options_va (struct MHD_Daemon *daemon,
 		  /* all options taking 'enum' */
 #ifdef HTTPS_SUPPORT
 		case MHD_OPTION_HTTPS_CRED_TYPE:
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
 		  if (MHD_YES != parse_options (daemon,
 						servaddr,
 						opt,
 						(gnutls_credentials_type_t) oa[i].value,
 						MHD_OPTION_END))
 		    return MHD_NO;
-#else /* !HAVE_GNUTLS */
+#else /* !ENABLE_GNUTLS */
       MHD_DLOG (daemon,
                 _("MHD_OPTION_HTTPS_CRED_TYPE option passed but no support for GnuTLS\n"));
       return MHD_NO;
-#endif /* !HAVE_GNUTLS */
+#endif /* !ENABLE_GNUTLS */
 		  break;
 #endif /* HTTPS_SUPPORT */
                 case MHD_OPTION_TLS_ENGINE_TYPE:
@@ -6487,7 +6487,7 @@ MHD_is_feature_supported(enum MHD_FEATURE feature)
                                            MHD_TLS_FEATURE_ENGINE_AVAILABLE);
 #else
       return MHD_NO;
-#endif  /* !HTTPS_SUPPORT || !HAVE_GNUTLS */
+#endif  /* !HTTPS_SUPPORT */
     case MHD_FEATURE_HTTPS_CERT_CALLBACK:
 #if defined(HTTPS_SUPPORT)
       return MHD_TLS_is_feature_supported (MHD_TLS_ENGINE_TYPE_GNUTLS,

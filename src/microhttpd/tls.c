@@ -70,41 +70,41 @@ MHD_TLS_LOG_SESSION (struct MHD_TLS_Session *session,
 void
 MHD_TLS_global_init (void)
 {
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
   if (NULL == engines[MHD_TLS_ENGINE_TYPE_GNUTLS])
     {
       MHD_TLS_gnutls_init ();
       engines[MHD_TLS_ENGINE_TYPE_GNUTLS] = &tls_engine_gnutls;
     }
-#endif /* HAVE_GNUTLS */
+#endif /* ENABLE_GNUTLS */
 
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
   if (NULL == engines[MHD_TLS_ENGINE_TYPE_OPENSSL])
     {
       MHD_TLS_openssl_init ();
       engines[MHD_TLS_ENGINE_TYPE_OPENSSL] = &tls_engine_openssl;
     }
-#endif /* HAVE_OPENSSL */
+#endif /* ENABLE_OPENSSL */
 }
 
 void
 MHD_TLS_global_deinit (void)
 {
-#ifdef HAVE_GNUTLS
+#ifdef ENABLE_GNUTLS
   if (NULL != engines[MHD_TLS_ENGINE_TYPE_GNUTLS])
     {
       MHD_TLS_gnutls_deinit ();
       engines[MHD_TLS_ENGINE_TYPE_GNUTLS] = NULL;
     }
-#endif /* HAVE_GNUTLS */
+#endif /* ENABLE_GNUTLS */
 
-#ifdef HAVE_OPENSSL
+#ifdef ENABLE_OPENSSL
   if (NULL != engines[MHD_TLS_ENGINE_TYPE_OPENSSL])
     {
       MHD_TLS_openssl_deinit ();
       engines[MHD_TLS_ENGINE_TYPE_OPENSSL] = NULL;
     }
-#endif /* HAVE_OPENSSL */
+#endif /* ENABLE_OPENSSL */
 }
 
 bool

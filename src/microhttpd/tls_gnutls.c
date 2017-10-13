@@ -31,7 +31,7 @@
 #include "internal.h"
 #include "tls.h"
 
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #if CRYPT_VERSION_NUMBER < 0x010600
 #if defined(MHD_USE_POSIX_THREADS)
 GCRY_THREAD_OPTION_PTHREAD_IMPL;
@@ -86,12 +86,12 @@ static struct gcry_thread_cbs gcry_threads_w32 = {
 
 #endif /* defined(MHD_W32_MUTEX_) */
 #endif /* CRYPT_VERSION_NUMBER < 0x010600 */
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
 
 void
 MHD_TLS_gnutls_init (void)
 {
-#ifdef MHD_HTTPS_REQUIRE_GRYPT
+#ifdef GNUTLS_REQUIRE_GCRYPT
 #if GCRYPT_VERSION_NUMBER < 0x010600
 #if defined(MHD_USE_POSIX_THREADS)
   if (0 != gcry_control (GCRYCTL_SET_THREAD_CBS,
@@ -107,7 +107,7 @@ MHD_TLS_gnutls_init (void)
   if (NULL == gcry_check_version ("1.6.0"))
     MHD_PANIC (_("libgcrypt is too old. MHD was compiled for libgcrypt 1.6.0 or newer\n"));
 #endif
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
+#endif /* GNUTLS_REQUIRE_GCRYPT */
   gnutls_global_init ();
 }
 

@@ -1347,7 +1347,19 @@ GNUTLS_LDFLAGS=""
 have_gnutls=no
 have_gnutls_sni=no
 have_gcrypt=no
-have_openssl=no
+enable_gnutls=no
+enable_openssl=no
+
+# optional: really use GnuTLS as a TLS engine?
+AC_MSG_CHECKING([whether to use GnuTLS for HTTPS testing only])
+AC_ARG_ENABLE([gnutls-for-https-testing-only],
+   [AS_HELP_STRING([--enable-gnutls-for-https-testing-only],
+               [use GnuTLS for HTTPS testing only])],
+   [enable_gnutls_for_https_testing_only=${enableval}],
+   [enable_gnutls_for_https_testing_only=no])
+AS_IF([[test "x$enable_gnutls_for_https_testing_only" != "xno"]],
+  [ enable_gnutls_for_https_testing_only=yes ])
+AC_MSG_RESULT([$enable_gnutls_for_https_testing_only])
 
 # optional: HTTPS support.  Enabled by default
 AC_ARG_ENABLE([https],
@@ -1360,8 +1372,11 @@ then
 # Next block is large unindented block
 #
 
-# We support HTTPS using GnuTLS/libgcrypt or OpenSSL. We need at least one,
-# but we can include support for multiple TLS engines at built time.
+# We support HTTPS using GnuTLS/libgcrypt or OpenSSL. We need at least one, but
+# we can include support for multiple TLS engines. Besides, as we need GnuTLS for
+# testing, if you disable GnuTLS, you won't be able to run HTTPS tests. If you
+# need to run them but don't want to have GnuTLS support built in MHD, you must
+# pass the --enable-gnutls-for-https-testing-only option.
 
 # gnutls
 have_gnutls_pkgcfg=no
@@ -1599,7 +1614,7 @@ AS_IF([test "x$have_openssl" != "xyes" && test "x$with_openssl" = "xyes"], [AC_M
      CFLAGS="$GNUTLS_CFLAGS $CFLAGS"
      LDFLAGS="$GNUTLS_LIBS $LDFLAGS"
      LIBS="$LIBS $GNUTLS_LIBS"
-     AC_CACHE_CHECK([[whether GnuTLS require libgcrypt initialisaion]], [mhd_cv_grypt_required],
+     AC_CACHE_CHECK([[whether GnuTLS require libgcrypt initialisation]], [mhd_cv_grypt_required],
        [
         AC_COMPILE_IFELSE(
           [
@@ -1609,7 +1624,7 @@ AS_IF([test "x$have_openssl" != "xyes" && test "x$with_openssl" = "xyes"], [AC_M
              ],
              [
 #if !defined(GNUTLS_VERSION_NUMBER) || GNUTLS_VERSION_NUMBER+0 <= 0x020c14
-#error Old versions of GnuTLS require libgcript initialisaion
+#error Old versions of GnuTLS require libgcrypt initialisation
 choke me now
 #endif
              ]
@@ -1644,6 +1659,21 @@ choke me now
      )
     ]
   )
+  AS_IF([test "x$have_gnutls" = "xyes"],
+    [
+     use_gnutls=no
+     AS_IF([test "x$mhd_cv_grypt_required" = "xno" -o "x$have_gcrypt" = "xyes"],
+       [use_gnutls=yes])
+     AS_IF([test "x$use_gnutls" = "xyes"],
+       [
+        AS_IF([test "x$mhd_cv_grypt_required" = "xyes"],
+          [AC_DEFINE([GNUTLS_REQUIRE_GCRYPT], [1], [Define to `1' if GnuTLS requires initialisation of libgcrypt])]
+        )
+        AC_DEFINE([HAVE_GNUTLS], [1], [Define to 1 if GnuTLS is available.])
+       ]
+     )
+    ]
+  )
   AC_SUBST([GNUTLS_CPPFLAGS])
   AC_SUBST([GNUTLS_CFLAGS])
   AC_SUBST([GNUTLS_LDFLAGS])
@@ -1658,7 +1688,8 @@ choke me now
   MSG_TLS_ENGINES=""
 
   AC_MSG_CHECKING([whether we can support HTTPS with GnuTLS])
-  AS_IF([[test "x$have_gnutls" = "xyes"]],
+  AS_IF([[test "x$have_gnutls" = "xyes" &&
+          test "x$enable_gnutls_for_https_testing_only" != "xyes"]],
     [
      AS_IF([[test "x$mhd_cv_grypt_required" = "xyes" && test "x$have_gcrypt" != "xyes"]],
        [
@@ -1666,7 +1697,8 @@ choke me now
        ],
        [
         have_https=yes
-        AC_DEFINE([HAVE_GNUTLS],[1],[Define to 1 if we can use GnuTLS.])
+        enable_gnutls=yes
+        AC_DEFINE([ENABLE_GNUTLS],[1],[Define to 1 if we can use GnuTLS for HTTPS support.])
         AS_IF([[test "x$mhd_cv_grypt_required" = "xyes"]],
           [
            AC_MSG_RESULT([yes (using libgnutls and libgcrypt)])
@@ -1676,7 +1708,6 @@ choke me now
            MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $LIBGCRYPT_CFLAGS $GNUTLS_CFLAGS"
            MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
            MHD_LIBDEPS="$GNUTLS_LIBS $LIBGCRYPT_LIBS $MHD_LIBDEPS"
-           AC_DEFINE([[MHD_HTTPS_REQUIRE_GRYPT]], [[1]], [Define to `1' if HTTPS require initialisation of libgcrypt])
           ],
           [
            AC_MSG_RESULT([yes])
@@ -1705,6 +1736,9 @@ choke me now
     ], [test "x$with_gnutls" = "xno"],
     [
      AC_MSG_RESULT([no (disabled)])
+    ], [test "x$enable_gnutls_for_https_testing_only" = "xyes"],
+    [
+     AC_MSG_RESULT([no (for testing only)])
     ],
     [
      AC_MSG_RESULT([no (lacking libgnutls)])
@@ -1714,8 +1748,9 @@ choke me now
   AC_MSG_CHECKING([whether we can support HTTPS with OpenSSL])
   AS_IF([test "x$have_openssl" = "xyes"], [
           have_https=yes
+          enable_openssl=yes
           AC_MSG_RESULT([yes])
-          AC_DEFINE([HAVE_OPENSSL],[1],[Define to 1 if we can use OpenSSL.])
+          AC_DEFINE([ENABLE_OPENSSL],[1],[Define to 1 if we can use OpenSSL for HTTPS support.])
           MSG_TLS_ENGINES+="${MSG_TLS_ENGINES:+, }openssl"
           MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $OPENSSL_CPPFLAGS"
           MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $OPENSSL_CFLAGS"
@@ -1755,9 +1790,10 @@ AC_MSG_RESULT([$MSG_HTTPS])
 
 AM_CONDITIONAL([HAVE_GNUTLS], [[test "x$have_gnutls" = "xyes"]])
 AM_CONDITIONAL([HAVE_GNUTLS_SNI], [[test "x$have_gnutls_sni" = "xyes"]])
-AM_CONDITIONAL([HAVE_OPENSSL], [test "x$have_openssl" = "xyes"])
+AM_CONDITIONAL([GNUTLS_REQUIRE_GCRYPT], [[test "x$have_gnutls" = "xyes" && test "x$mhd_cv_grypt_required" = "xyes"]])
+AM_CONDITIONAL([ENABLE_GNUTLS], [[test "x$enable_gnutls" = "xyes"]])
+AM_CONDITIONAL([ENABLE_OPENSSL], [test "x$enable_openssl" = "xyes"])
 AM_CONDITIONAL([ENABLE_HTTPS], [test "x$enable_https" = "xyes"])
-AM_CONDITIONAL([HTTPS_REQUIRE_GRYPT], [[test "x$enable_https" = "xyes" && test "x$mhd_cv_grypt_required" = "xyes"]])
 
 # optional: HTTP Basic Auth support. Enabled by default
 AC_MSG_CHECKING([[whether to support HTTP basic authentication]])
