@@ -371,7 +371,7 @@ main (int argc, char *const *argv)
                             NULL, NULL,
                             &http_ahc, NULL,
                             MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
-                            MHD_OPTION_HTTPS_CERT_CALLBACK, cb_by_engine[i].cb,
+                            MHD_OPTION_TLS_CERT_CALLBACK, cb_by_engine[i].cb,
                             MHD_OPTION_END);
       if (d == NULL)
         {

@@ -142,7 +142,7 @@ test_query_session (enum MHD_TLS_EngineType tls_engine_type,
                         MHD_USE_ERROR_LOG, port,
                         NULL, NULL, &query_session_ahc, NULL,
                         MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
-                        MHD_OPTION_HTTPS_PRIORITIES, priorities,
+                        MHD_OPTION_TLS_PRIORITIES, priorities,
                         MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
                         MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
                         MHD_OPTION_END);

@@ -180,7 +180,7 @@ main (int argc, char *const *argv)
              MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
              MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
              MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-             MHD_OPTION_HTTPS_PRIORITIES, priorities,
+             MHD_OPTION_TLS_PRIORITIES, priorities,
              MHD_OPTION_END))
         {
           fprintf (stderr, "TLS1.0-AES-SHA1 test failed\n");
@@ -200,7 +200,7 @@ main (int argc, char *const *argv)
              MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
              MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
              MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-             MHD_OPTION_HTTPS_PRIORITIES, priorities,
+             MHD_OPTION_TLS_PRIORITIES, priorities,
              MHD_OPTION_END))
         {
           fprintf (stderr, "TLS1.0 vs SSL3 test failed\n");
