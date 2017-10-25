@@ -906,8 +906,8 @@ MHD_TLS_openssl_session_write (struct MHD_TLS_Session * session,
 
 const struct MHD_TLS_Engine tls_engine_openssl =
 {
-  "GnuTLS",
-  MHD_TLS_ENGINE_TYPE_GNUTLS,
+  "OpenSSL",
+  MHD_TLS_ENGINE_TYPE_OPENSSL,
   MHD_TLS_openssl_has_feature,
   MHD_TLS_openssl_init_context,
   MHD_TLS_openssl_deinit_context,
