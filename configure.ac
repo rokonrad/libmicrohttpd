@@ -1779,8 +1779,10 @@ choke me now
   AS_IF([test "x$have_https" = "xyes"], [
           AC_DEFINE([[HTTPS_SUPPORT]],[[1]],[Define to 1 if libmicrohttpd is compiled with HTTPS support.])
           MSG_HTTPS="yes (using $MSG_TLS_ENGINES)"
+          enable_https=yes
         ], [
           MSG_HTTPS="no (no TLS engines found)"
+          enable_https=no
         ])
 else
   MSG_HTTPS="no (disabled)"
