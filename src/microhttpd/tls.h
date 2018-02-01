@@ -144,7 +144,7 @@ enum MHD_TLS_ClientCertificateMode
 
 /** @} */
 
-#ifdef ENABLE_OPENSSL
+#ifdef ENABLE_GNUTLS
 #include "tls_gnutls.h"
 #endif
 
