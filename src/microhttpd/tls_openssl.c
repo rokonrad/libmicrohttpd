@@ -448,7 +448,6 @@ MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
       X509_free (cert);
       return false;
     }
-  X509_free (cert);
 
   return true;
 }
