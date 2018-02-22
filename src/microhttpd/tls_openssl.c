@@ -299,6 +299,14 @@ MHD_TLS_openssl_init_context (struct MHD_TLS_Context *context)
       return false;
     }
 
+  if (!SSL_CTX_set_ecdh_auto (context->d.openssl.context, 1))
+    {
+      MHD_TLS_LOG_CONTEXT (context,
+                           _("Cannot set ECDH selection to automatic\n"));
+      SSL_CTX_free (context->d.openssl.context);
+      return false;
+    }
+
   return true;
 }
 
