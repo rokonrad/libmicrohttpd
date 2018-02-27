@@ -26,6 +26,7 @@
 #include "mhd_options.h"
 
 #include <openssl/err.h>
+#include <openssl/opensslv.h>
 
 #include "internal.h"
 #include "tls.h"
@@ -67,6 +68,8 @@ struct CB_BIO
   void *context;
 };
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
+
 static BIO_METHOD cb_bio_methods =
 {
     (0x80000000|BIO_TYPE_SOURCE_SINK), /* avoid conflict with builtin BIO's. */
@@ -80,11 +83,27 @@ static BIO_METHOD cb_bio_methods =
     cb_bio_free,
 };
 
+#define BIO_set_init(bio, v) do { \
+  (bio)->init = (v); \
+} while (0)
+
+#define BIO_set_data(bio, data) do { \
+  (bio)->ptr = (data); \
+} while (0)
+
+#define BIO_get_data(bio) ((bio)->ptr)
+
+#else /* OpenSSL >= 1.1.0 */
+
+static BIO_METHOD * cb_bio_methods = NULL;
+
+#endif /* OpenSSL >= 1.1.0 */
+
 static int
 cb_bio_write (BIO *bio, const char *buf, int size)
 {
   int result;
-  struct CB_BIO *cb = (struct CB_BIO *)bio->ptr;
+  struct CB_BIO *cb = (struct CB_BIO *)BIO_get_data(bio);
 
   if (0 > size || (0 < size && NULL == buf))
     return -1;
@@ -106,13 +125,13 @@ static int
 cb_bio_read (BIO *bio, char *buf, int size)
 {
   int result;
-  struct CB_BIO *cb = (struct CB_BIO *)bio->ptr;
+  struct CB_BIO *cb = (struct CB_BIO *)BIO_get_data(bio);
 
   if (0 > size || (0 < size && NULL == buf))
     return -1;
 
   BIO_clear_retry_flags (bio);
-  result = cb->read_cb (cb->context,
+result = cb->read_cb (cb->context,
                         buf,
                         size);
   if (result >= 0)
@@ -159,7 +178,7 @@ cb_bio_new (BIO *bio)
   cb->read_cb = NULL;
   cb->write_cb = NULL;
   cb->context = NULL;
-  bio->ptr = cb;
+  BIO_set_data(bio, cb);
 
   return 1;
 }
@@ -167,8 +186,8 @@ cb_bio_new (BIO *bio)
 static int
 cb_bio_free (BIO *bio)
 {
-  OPENSSL_free (bio->ptr);
-  bio->ptr = NULL;
+  OPENSSL_free (BIO_get_data(bio));
+  BIO_set_data(bio, NULL);
 
   return 1;
 }
@@ -178,25 +197,28 @@ BIO_new_cb (BIO_ReadCallback read_cb,
             BIO_WriteCallback write_cb,
             void *context)
 {
-    BIO *bio;
-    struct CB_BIO *cb;
+  BIO *bio;
+  struct CB_BIO *cb;
 
-    if (NULL == read_cb || NULL == write_cb)
-      return NULL;
+  if (NULL == read_cb || NULL == write_cb)
+    return NULL;
 
-    bio = BIO_new (&cb_bio_methods);
-    if (NULL == bio)
-      return (NULL);
+#if OPENSSL_VERSION_NUMBER < 0x10100000
+  bio = BIO_new (&cb_bio_methods);
+#else /* OpenSSL >= 1.1.0 */
+  bio = BIO_new (cb_bio_methods);
+#endif /* OpenSSL >= 1.1.0 */
+  if (NULL == bio)
+    return (NULL);
 
-    cb = (struct CB_BIO *) bio->ptr;
-    cb->read_cb = read_cb;
-    cb->write_cb = write_cb;
-    cb->context = context;
-    bio->init = 1;
+  cb = (struct CB_BIO *) BIO_get_data(bio);
+  cb->read_cb = read_cb;
+  cb->write_cb = write_cb;
+  cb->context = context;
+  BIO_set_init(bio, 1);
 
-    return bio;
+  return bio;
 }
-
 
 static MHD_mutex_ *locks;
 
@@ -264,11 +286,26 @@ MHD_TLS_openssl_init (void)
   SSL_library_init ();
   SSL_load_error_strings (),
   threads_init ();
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+  cb_bio_methods = BIO_meth_new (BIO_get_new_index () | BIO_TYPE_SOURCE_SINK, "MHD");
+  if (NULL == cb_bio_methods ||
+      !BIO_meth_set_write (cb_bio_methods, cb_bio_write) ||
+      !BIO_meth_set_read (cb_bio_methods, cb_bio_read) ||
+      !BIO_meth_set_puts (cb_bio_methods, cb_bio_puts) ||
+      !BIO_meth_set_ctrl (cb_bio_methods, cb_bio_ctrl) ||
+      !BIO_meth_set_create (cb_bio_methods, cb_bio_new) ||
+      !BIO_meth_set_destroy (cb_bio_methods, cb_bio_free))
+    MHD_PANIC (_("Cannot create OpenSSL BIO\n"));
+#endif /* OpenSSL >= 1.1.0 */
 }
 
 void
 MHD_TLS_openssl_deinit (void)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+  BIO_meth_free (cb_bio_methods);
+#endif /* OpenSSL >= 1.1.0 */
   threads_deinit ();
   ERR_free_strings ();
   EVP_cleanup ();
@@ -586,8 +623,10 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
 
   switch (SSL_CIPHER_get_id (cipher))
     {
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_NULL_WITH_MD5:
     case SSL2_CK_NULL:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_NULL_MD5:
     case SSL3_CK_RSA_NULL_SHA:
     case TLS1_CK_RSA_WITH_NULL_SHA256:
@@ -596,40 +635,84 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_RSA_WITH_NULL_SHA:
     case TLS1_CK_ECDHE_RSA_WITH_NULL_SHA:
     case TLS1_CK_ECDH_anon_WITH_NULL_SHA:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_PSK_WITH_NULL_SHA256:
+    case TLS1_CK_PSK_WITH_NULL_SHA384:
+    case TLS1_CK_DHE_PSK_WITH_NULL_SHA256:
+    case TLS1_CK_DHE_PSK_WITH_NULL_SHA384:
+    case TLS1_CK_RSA_PSK_WITH_NULL_SHA256:
+    case TLS1_CK_RSA_PSK_WITH_NULL_SHA384:
+    case TLS1_CK_PSK_WITH_NULL_SHA:
+    case TLS1_CK_DHE_PSK_WITH_NULL_SHA:
+    case TLS1_CK_RSA_PSK_WITH_NULL_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_NULL_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_NULL_SHA256:
+    case TLS1_CK_ECDHE_PSK_WITH_NULL_SHA384:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_NULL;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_RC4_128_EXPORT40_WITH_MD5:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_RC4_40_MD5:
     case SSL3_CK_ADH_RC4_40_MD5:
       return MHD_TLS_CIPHER_ALGORITHM_RC4_40;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case TLS1_CK_RSA_EXPORT1024_WITH_RC4_56_SHA:
     case TLS1_CK_RSA_EXPORT1024_WITH_RC4_56_MD5:
     case TLS1_CK_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA:
       return MHD_TLS_CIPHER_ALGORITHM_RC4_56;
+#endif /* OpenSSL < 1.1.0 */
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_RC4_128_WITH_MD5:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_RC4_128_MD5:
     case SSL3_CK_RSA_RC4_128_SHA:
     case SSL3_CK_ADH_RC4_128_MD5:
     case TLS1_CK_PSK_WITH_RC4_128_SHA:
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case TLS1_CK_DHE_DSS_WITH_RC4_128_SHA:
+#endif /* OpenSSL < 1.1.0 */
     case TLS1_CK_ECDH_ECDSA_WITH_RC4_128_SHA:
     case TLS1_CK_ECDHE_ECDSA_WITH_RC4_128_SHA:
     case TLS1_CK_ECDH_RSA_WITH_RC4_128_SHA:
     case TLS1_CK_ECDHE_RSA_WITH_RC4_128_SHA:
     case TLS1_CK_ECDH_anon_WITH_RC4_128_SHA:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_DHE_PSK_WITH_RC4_128_SHA:
+    case TLS1_CK_RSA_PSK_WITH_RC4_128_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_RC4_128_SHA:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_RC4_128;
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_DHE_RSA_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_PSK_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_ECDHE_PSK_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_DHE_PSK_WITH_CHACHA20_POLY1305:
+    case TLS1_CK_RSA_PSK_WITH_CHACHA20_POLY1305:
+      return MHD_TLS_CIPHER_ALGORITHM_CHACHA20_POLY1305_256;
+#endif /* OpenSSL >= 1.1.0 */
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_RC2_128_CBC_EXPORT40_WITH_MD5:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_RC2_40_MD5:
       return MHD_TLS_CIPHER_ALGORITHM_RC2_40_CBC;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case TLS1_CK_RSA_EXPORT1024_WITH_RC2_CBC_56_MD5:
       return MHD_TLS_CIPHER_ALGORITHM_RC2_56_CBC;
+#endif /* OpenSSL < 1.1.0 */
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_RC2_128_CBC_WITH_MD5:
       return MHD_TLS_CIPHER_ALGORITHM_RC2_128_CBC;
+#endif /* OpenSSL < 1.1.0 */
 
     case SSL3_CK_RSA_DES_40_CBC_SHA:
     case SSL3_CK_DH_DSS_DES_40_CBC_SHA:
@@ -639,25 +722,33 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case SSL3_CK_ADH_DES_40_CBC_SHA:
       return MHD_TLS_CIPHER_ALGORITHM_DES_40_CBC;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_DES_64_CBC_WITH_MD5:
     case SSL2_CK_DES_64_CBC_WITH_SHA:
     case SSL2_CK_DES_64_CFB64_WITH_MD5_1:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_DES_64_CBC_SHA:
     case SSL3_CK_DH_DSS_DES_64_CBC_SHA:
     case SSL3_CK_DH_RSA_DES_64_CBC_SHA:
     case SSL3_CK_EDH_DSS_DES_64_CBC_SHA:
     case SSL3_CK_EDH_RSA_DES_64_CBC_SHA:
     case SSL3_CK_ADH_DES_64_CBC_SHA:
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case TLS1_CK_RSA_EXPORT1024_WITH_DES_CBC_SHA:
     case TLS1_CK_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA:
+#endif /* OpenSSL < 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_DES_56_CBC;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_IDEA_128_CBC_WITH_MD5:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_IDEA_128_SHA:
       return MHD_TLS_CIPHER_ALGORITHM_IDEA_128_CBC;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_DES_192_EDE3_CBC_WITH_MD5:
     case SSL2_CK_DES_192_EDE3_CBC_WITH_SHA:
+#endif /* OpenSSL < 1.1.0 */
     case SSL3_CK_RSA_DES_192_CBC3_SHA:
     case SSL3_CK_DH_DSS_DES_192_CBC3_SHA:
     case SSL3_CK_DH_RSA_DES_192_CBC3_SHA:
@@ -673,6 +764,11 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_RSA_WITH_DES_192_CBC3_SHA:
     case TLS1_CK_ECDHE_RSA_WITH_DES_192_CBC3_SHA:
     case TLS1_CK_ECDH_anon_WITH_DES_192_CBC3_SHA:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_DHE_PSK_WITH_3DES_EDE_CBC_SHA:
+    case TLS1_CK_RSA_PSK_WITH_3DES_EDE_CBC_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_3DES_EDE_CBC_SHA:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_3DES_EDE_112_CBC;
 
     case TLS1_CK_RSA_WITH_SEED_SHA:
@@ -689,6 +785,22 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA:
     case TLS1_CK_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA:
     case TLS1_CK_ADH_WITH_CAMELLIA_128_CBC_SHA:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_DH_DSS_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_DH_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ADH_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ECDHE_ECDSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ECDH_ECDSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ECDHE_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ECDH_RSA_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_PSK_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_DHE_PSK_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_RSA_PSK_WITH_CAMELLIA_128_CBC_SHA256:
+    case TLS1_CK_ECDHE_PSK_WITH_CAMELLIA_128_CBC_SHA256:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_128_CBC;
 
     case TLS1_CK_RSA_WITH_CAMELLIA_256_CBC_SHA:
@@ -697,6 +809,22 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA:
     case TLS1_CK_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA:
     case TLS1_CK_ADH_WITH_CAMELLIA_256_CBC_SHA:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_RSA_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_DH_DSS_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_DH_RSA_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_ADH_WITH_CAMELLIA_256_CBC_SHA256:
+    case TLS1_CK_ECDHE_ECDSA_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_ECDH_ECDSA_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_ECDH_RSA_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_PSK_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_RSA_PSK_WITH_CAMELLIA_256_CBC_SHA384:
+    case TLS1_CK_ECDHE_PSK_WITH_CAMELLIA_256_CBC_SHA384:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_CAMELLIA_256_CBC;
 
     case TLS1_CK_PSK_WITH_AES_128_CBC_SHA:
@@ -724,6 +852,15 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_ECDSA_WITH_AES_128_SHA256:
     case TLS1_CK_ECDHE_RSA_WITH_AES_128_SHA256:
     case TLS1_CK_ECDH_RSA_WITH_AES_128_SHA256:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_DHE_PSK_WITH_AES_128_CBC_SHA:
+    case TLS1_CK_DHE_PSK_WITH_AES_128_CBC_SHA256:
+    case TLS1_CK_RSA_PSK_WITH_AES_128_CBC_SHA:
+    case TLS1_CK_RSA_PSK_WITH_AES_128_CBC_SHA256:
+    case TLS1_CK_PSK_WITH_AES_128_CBC_SHA256:
+    case TLS1_CK_ECDHE_PSK_WITH_AES_128_CBC_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_AES_128_CBC_SHA256:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_AES_128_CBC;
 
     case TLS1_CK_PSK_WITH_AES_256_CBC_SHA:
@@ -751,6 +888,15 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_ECDSA_WITH_AES_256_SHA384:
     case TLS1_CK_ECDHE_RSA_WITH_AES_256_SHA384:
     case TLS1_CK_ECDH_RSA_WITH_AES_256_SHA384:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_DHE_PSK_WITH_AES_256_CBC_SHA:
+    case TLS1_CK_RSA_PSK_WITH_AES_256_CBC_SHA:
+    case TLS1_CK_PSK_WITH_AES_256_CBC_SHA384:
+    case TLS1_CK_DHE_PSK_WITH_AES_256_CBC_SHA384:
+    case TLS1_CK_RSA_PSK_WITH_AES_256_CBC_SHA384:
+    case TLS1_CK_ECDHE_PSK_WITH_AES_256_CBC_SHA:
+    case TLS1_CK_ECDHE_PSK_WITH_AES_256_CBC_SHA384:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_AES_256_CBC;
 
     case TLS1_CK_RSA_WITH_AES_128_GCM_SHA256:
@@ -763,6 +909,11 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_ECDSA_WITH_AES_128_GCM_SHA256:
     case TLS1_CK_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
     case TLS1_CK_ECDH_RSA_WITH_AES_128_GCM_SHA256:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_PSK_WITH_AES_128_GCM_SHA256:
+    case TLS1_CK_DHE_PSK_WITH_AES_128_GCM_SHA256:
+    case TLS1_CK_RSA_PSK_WITH_AES_128_GCM_SHA256:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_AES_128_GCM;
 
     case TLS1_CK_RSA_WITH_AES_256_GCM_SHA384:
@@ -775,9 +926,47 @@ MHD_TLS_openssl_get_session_cipher_algorithm (struct MHD_TLS_Session *session)
     case TLS1_CK_ECDH_ECDSA_WITH_AES_256_GCM_SHA384:
     case TLS1_CK_ECDHE_RSA_WITH_AES_256_GCM_SHA384:
     case TLS1_CK_ECDH_RSA_WITH_AES_256_GCM_SHA384:
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_PSK_WITH_AES_256_GCM_SHA384:
+    case TLS1_CK_DHE_PSK_WITH_AES_256_GCM_SHA384:
+    case TLS1_CK_RSA_PSK_WITH_AES_256_GCM_SHA384:
+#endif /* OpenSSL >= 1.1.0 */
       return MHD_TLS_CIPHER_ALGORITHM_AES_256_GCM;
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000
+    case TLS1_CK_RSA_WITH_AES_128_CCM:
+    case TLS1_CK_DHE_RSA_WITH_AES_128_CCM:
+    case TLS1_CK_PSK_WITH_AES_128_CCM:
+    case TLS1_CK_DHE_PSK_WITH_AES_128_CCM:
+    case TLS1_CK_ECDHE_ECDSA_WITH_AES_128_CCM:
+
+      return MHD_TLS_CIPHER_ALGORITHM_AES_128_CCM;
+
+    case TLS1_CK_RSA_WITH_AES_256_CCM:
+    case TLS1_CK_DHE_RSA_WITH_AES_256_CCM:
+    case TLS1_CK_PSK_WITH_AES_256_CCM:
+    case TLS1_CK_DHE_PSK_WITH_AES_256_CCM:
+    case TLS1_CK_ECDHE_ECDSA_WITH_AES_256_CCM:
+      return MHD_TLS_CIPHER_ALGORITHM_AES_256_CCM;
+
+    case TLS1_CK_RSA_WITH_AES_128_CCM_8:
+    case TLS1_CK_DHE_RSA_WITH_AES_128_CCM_8:
+    case TLS1_CK_PSK_WITH_AES_128_CCM_8:
+    case TLS1_CK_DHE_PSK_WITH_AES_128_CCM_8:
+    case TLS1_CK_ECDHE_ECDSA_WITH_AES_128_CCM_8:
+      return MHD_TLS_CIPHER_ALGORITHM_AES_128_8_CCM;
+
+    case TLS1_CK_RSA_WITH_AES_256_CCM_8:
+    case TLS1_CK_DHE_RSA_WITH_AES_256_CCM_8:
+    case TLS1_CK_PSK_WITH_AES_256_CCM_8:
+    case TLS1_CK_DHE_PSK_WITH_AES_256_CCM_8:
+    case TLS1_CK_ECDHE_ECDSA_WITH_AES_256_CCM_8:
+      return MHD_TLS_CIPHER_ALGORITHM_AES_256_8_CCM;
+#endif /* OpenSSL >= 1.1.0 */
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000
     case SSL2_CK_RC4_64_WITH_MD5:
+#endif /* OpenSSL < 1.1.0 */
     default:
       return MHD_TLS_CIPHER_ALGORITHM_UNKNOWN;
     }
