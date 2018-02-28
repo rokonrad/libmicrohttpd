@@ -424,6 +424,9 @@ MHD_TLS_gnutls_init_session (struct MHD_TLS_Session * session,
 
         gnutls_certificate_server_set_request (session->d.gnutls.session,
                                                request);
+        gnutls_session_set_verify_cert (session->d.gnutls.session,
+                                        NULL,
+                                        0);
    }
 
   gnutls_transport_set_ptr (session->d.gnutls.session,
