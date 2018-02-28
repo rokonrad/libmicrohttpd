@@ -320,6 +320,7 @@ MHD_TLS_gnutls_set_context_client_certificate_mode (struct MHD_TLS_Context *cont
 {
   switch (mode)
     {
+      case MHD_TLS_CLIENT_CERTIFICATE_MODE_DISABLE:
       case MHD_TLS_CLIENT_CERTIFICATE_MODE_REQUEST:
       case MHD_TLS_CLIENT_CERTIFICATE_MODE_REQUIRE:
         context->d.gnutls.client_cert_mode = mode;
