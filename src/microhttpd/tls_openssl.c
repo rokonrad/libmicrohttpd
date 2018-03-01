@@ -466,35 +466,70 @@ static bool
 MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
                                                const char *certificate)
 {
-  X509 *cert = NULL;
   BIO *bio;
+  STACK_OF(X509_INFO) *info_sk = NULL;
+  X509_INFO *info;
+  int cert_count = 0;
+  int idx;
 
   bio = BIO_new_mem_buf (certificate, -1);
   if (NULL != bio)
     {
-      cert = PEM_read_bio_X509 (bio,
-                                NULL,
-                                0,
-                                NULL);
+      info_sk = PEM_X509_INFO_read_bio (bio, NULL, NULL, NULL);
       BIO_free_all (bio);
     }
-  if (NULL == cert)
+
+  if (NULL == info)
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Bad trust certificate format\n"));
-      return false;
+      goto cleanup;
     }
 
-  if (!SSL_CTX_add_extra_chain_cert (context->d.openssl.context,
-                                     cert))
+  for (idx = 0; idx < sk_X509_INFO_num (info_sk); ++idx)
+    {
+      info = sk_X509_INFO_value (info_sk, idx);
+      if (NULL != info->x509)
+        {
+          /* The first certificate is our CA certificate. It may be followed by
+           * other intermediate or even root CA certificates. */
+          if (cert_count == 0)
+            {
+              /* Set the correct CA for client authentication. */
+              if (!SSL_CTX_add_client_CA (context->d.openssl.context,
+                                          info->x509))
+                {
+                  MHD_TLS_LOG_CONTEXT (context,
+                                       _("Cannot add CA to client certificate request\n"));
+                  goto cleanup;
+                }
+            }
+
+          if (!X509_STORE_add_cert (SSL_CTX_get_cert_store (context->d.openssl.context),
+                                                            info->x509))
+            {
+              MHD_TLS_LOG_CONTEXT (context,
+                                   _("Cannot add CA certificate to store\n"));
+              goto cleanup;
+            }
+          info->x509 = NULL;
+          cert_count++;
+        }
+    }
+
+  if (cert_count == 0)
     {
       MHD_TLS_LOG_CONTEXT (context,
-                           _("Cannot set trust certificate\n"));
-      X509_free (cert);
-      return false;
+                           _("No trust certificate found\n"));
+      goto cleanup;
     }
 
   return true;
+
+cleanup:
+  if (NULL != info_sk)
+    sk_X509_INFO_pop_free (info_sk, X509_INFO_free);
+  return false;
 }
 
 static bool

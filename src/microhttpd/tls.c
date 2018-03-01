@@ -147,7 +147,6 @@ MHD_TLS_create_context (const struct MHD_TLS_Engine *engine,
   context->log_data = log_data;
   context->free_log_data_cb = free_log_data_cb;
 
-
   if (!engine->init_context (context))
     {
       MHD_TLS_LOG_CONTEXT (context,
