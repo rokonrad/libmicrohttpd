@@ -412,35 +412,74 @@ MHD_TLS_openssl_set_context_certificate (struct MHD_TLS_Context *context,
                                          const char *private_key,
                                          const char *password)
 {
-  X509 *cert = NULL;
-  EVP_PKEY *key = NULL;
+  bool result = false;
   BIO *bio;
+  STACK_OF(X509_INFO) *info_sk = NULL;
+  X509_INFO *info;
+  EVP_PKEY *key = NULL;
+  int cert_count = 0;
+  int idx;
 
   bio = BIO_new_mem_buf (certificate, -1);
   if (NULL != bio)
     {
-      cert = PEM_read_bio_X509 (bio,
-                                NULL,
-                                0,
-                                NULL);
+      info_sk = PEM_X509_INFO_read_bio (bio, NULL, NULL, NULL);
       BIO_free_all (bio);
     }
-  if (NULL == cert)
+  if (NULL == info_sk)
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Bad server certificate format\n"));
-      return false;
+      goto cleanup;
     }
 
-  if (!SSL_CTX_use_certificate (context->d.openssl.context,
-                                cert))
+  for (idx = 0; idx < sk_X509_INFO_num (info_sk); ++idx)
+    {
+      info = sk_X509_INFO_value (info_sk, idx);
+      if (NULL != info->x509)
+        {
+          /* The first certificate is server certificate. It may be followed by
+           * intermediate or even root CA certificates. */
+          if (cert_count == 0)
+            {
+              if (!SSL_CTX_use_certificate (context->d.openssl.context,
+                                            info->x509))
+                {
+                  MHD_TLS_LOG_CONTEXT (context,
+                                       _("Cannot set server certificate\n"));
+                  goto cleanup;
+                }
+            }
+
+          if (!X509_STORE_add_cert (SSL_CTX_get_cert_store (context->d.openssl.context),
+                                                            info->x509))
+            {
+              unsigned long error = ERR_peek_last_error ();
+
+              /* Certificate may be in trust certificate chain too. */
+              if (ERR_LIB_X509 == ERR_GET_LIB (error) &&
+                  X509_R_CERT_ALREADY_IN_HASH_TABLE == ERR_GET_REASON (error))
+                ERR_clear_error ();
+              else
+                {
+                  MHD_TLS_LOG_CONTEXT (context,
+                                       _("Cannot add CA certificate to store\n"));
+                  goto cleanup;
+                }
+            }
+          else
+            info->x509 = NULL;
+
+          cert_count++;
+        }
+    }
+
+  if (cert_count == 0)
     {
       MHD_TLS_LOG_CONTEXT (context,
-                           _("Cannot set server certificate\n"));
-      X509_free (cert);
-      return false;
-  }
-  X509_free (cert);
+                           _("No server certificate found\n"));
+      goto cleanup;
+    }
 
   bio = BIO_new_mem_buf (private_key, -1);
   if (NULL != bio)
@@ -455,19 +494,26 @@ MHD_TLS_openssl_set_context_certificate (struct MHD_TLS_Context *context,
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Bad server key format or invalid password\n"));
-      return false;
+      goto cleanup;
     }
   if (!SSL_CTX_use_PrivateKey (context->d.openssl.context,
                                key))
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Cannot set server private key\n"));
-      EVP_PKEY_free (key);
-      return false;
+      goto cleanup;
     }
-  EVP_PKEY_free (key);
 
-  return true;
+  result = true;
+
+cleanup:
+  if (NULL != key)
+    EVP_PKEY_free (key);
+
+  if (NULL != info_sk)
+    sk_X509_INFO_pop_free (info_sk, X509_INFO_free);
+
+  return result;
 }
 
 static bool
