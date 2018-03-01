@@ -450,7 +450,7 @@ MHD_init_daemon_certificate (struct MHD_Daemon *daemon)
 
       /** @todo Add an option to configure the mode. */
       if (!MHD_TLS_set_context_client_certificate_mode (daemon->tls_context,
-                                                        MHD_TLS_CLIENT_CERTIFICATE_MODE_REQUEST))
+                                                        MHD_TLS_CLIENT_CERTIFICATE_MODE_REQUIRE))
         return -1;
     }
 
