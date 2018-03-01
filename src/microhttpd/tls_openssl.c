@@ -474,6 +474,7 @@ static bool
 MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
                                                const char *certificate)
 {
+  bool result = false;
   BIO *bio;
   STACK_OF(X509_INFO) *info_sk = NULL;
   X509_INFO *info;
@@ -487,7 +488,7 @@ MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
       BIO_free_all (bio);
     }
 
-  if (NULL == info)
+  if (NULL == info_sk)
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Bad trust certificate format\n"));
@@ -516,11 +517,22 @@ MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
           if (!X509_STORE_add_cert (SSL_CTX_get_cert_store (context->d.openssl.context),
                                                             info->x509))
             {
-              MHD_TLS_LOG_CONTEXT (context,
-                                   _("Cannot add CA certificate to store\n"));
-              goto cleanup;
+              unsigned long error = ERR_peek_last_error ();
+
+              /* Certificate may be in server certificate chain too. */
+              if (ERR_LIB_X509 == ERR_GET_LIB (error) &&
+                  X509_R_CERT_ALREADY_IN_HASH_TABLE == ERR_GET_REASON (error))
+                ERR_clear_error ();
+              else
+                {
+                  MHD_TLS_LOG_CONTEXT (context,
+                                       _("Cannot add CA certificate to store\n"));
+                  goto cleanup;
+                }
             }
-          info->x509 = NULL;
+          else
+            info->x509 = NULL;
+
           cert_count++;
         }
     }
@@ -532,12 +544,13 @@ MHD_TLS_openssl_set_context_trust_certificate (struct MHD_TLS_Context *context,
       goto cleanup;
     }
 
-  return true;
+  result = true;
 
 cleanup:
   if (NULL != info_sk)
     sk_X509_INFO_pop_free (info_sk, X509_INFO_free);
-  return false;
+
+  return result;
 }
 
 static bool
