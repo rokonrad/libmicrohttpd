@@ -427,7 +427,7 @@ MHD_TLS_openssl_set_context_certificate (struct MHD_TLS_Context *context,
     }
   if (NULL == cert)
     {
-	    MHD_TLS_LOG_CONTEXT (context,
+      MHD_TLS_LOG_CONTEXT (context,
                            _("Bad server certificate format\n"));
       return false;
     }
@@ -435,11 +435,11 @@ MHD_TLS_openssl_set_context_certificate (struct MHD_TLS_Context *context,
   if (!SSL_CTX_use_certificate (context->d.openssl.context,
                                 cert))
     {
-	    MHD_TLS_LOG_CONTEXT (context,
+      MHD_TLS_LOG_CONTEXT (context,
                            _("Cannot set server certificate\n"));
       X509_free (cert);
       return false;
-	}
+  }
   X509_free (cert);
 
   bio = BIO_new_mem_buf (private_key, -1);
@@ -453,7 +453,7 @@ MHD_TLS_openssl_set_context_certificate (struct MHD_TLS_Context *context,
     }
   if (NULL == key)
     {
-	    MHD_TLS_LOG_CONTEXT (context,
+      MHD_TLS_LOG_CONTEXT (context,
                            _("Bad server key format or invalid password\n"));
       return false;
     }
@@ -579,7 +579,7 @@ MHD_TLS_openssl_set_context_cipher_priorities (struct MHD_TLS_Context *context,
                                     priorities))
     {
       MHD_TLS_LOG_CONTEXT (context,
-			                     _("Setting priorities to `%s' failed\n"),
+                           _("Setting priorities to `%s' failed\n"),
                            priorities);
       return false;
     }
