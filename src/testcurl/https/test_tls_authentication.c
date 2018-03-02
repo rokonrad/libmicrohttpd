@@ -98,7 +98,6 @@ main (int argc, char *const *argv)
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
 #endif /* GNUTLS_REQUIRE_GCRYPT */
-#endif /* MHD_HTTPS_REQUIRE_GRYPT */
   if (!testsuite_curl_global_init ())
     return 99;
   if (NULL == curl_version_info (CURLVERSION_NOW)->ssl_version)
