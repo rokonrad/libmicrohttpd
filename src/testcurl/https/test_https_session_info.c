@@ -32,7 +32,6 @@
 #endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
-extern int curl_check_version (const char *req_version, ...);
 extern const char srv_key_pem[];
 extern const char srv_self_signed_cert_pem[];
 
@@ -55,15 +54,17 @@ static const struct
 static int
 query_session_ahc (void *cls, struct MHD_Connection *connection,
                    const char *url, const char *method,
-                   const char *upload_data, const char *version,
+                   const char *version, const char *upload_data,
                    size_t *upload_data_size, void **ptr)
 {
   struct MHD_Response *response;
   int ret;
+  (void)cls;(void)url;(void)method;(void)version;       /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;             /* Unused. Silent compiler warning. */
 
   if (NULL == *ptr)
     {
-      *ptr = &query_session_ahc;
+      *ptr = (void*)&query_session_ahc;
       return MHD_YES;
     }
 
@@ -188,9 +189,9 @@ test_query_session (enum MHD_TLS_EngineType tls_engine_type,
   curl_easy_setopt (c, CURLOPT_SSL_VERIFYHOST, 0);
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
 
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   * setting NOSIGNAL results in really weird
+   * crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -219,6 +220,7 @@ main (int argc, char *const *argv)
   enum MHD_TLS_EngineType tls_engine_type;
   const char *tls_engine_name;
   const char *ssl_version;
+  (void)argc;   /* Unused. Silent compiler warning. */
 
 #ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
@@ -226,11 +228,8 @@ main (int argc, char *const *argv)
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
 #endif /* GNUTLS_REQUIRE_GCRYPT */
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error (code: %u)\n", errorCount);
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
 
   ssl_version = curl_version_info (CURLVERSION_NOW)->ssl_version;
   if (NULL == ssl_version)

@@ -800,13 +800,13 @@ struct MHD_Connection
    */
   uint64_t response_write_position;
 
-#if defined(HAVE_LINUX_SENDFILE) || defined(HAVE_FREEBSD_SENDFILE)
+#if defined(_MHD_HAVE_SENDFILE)
   enum MHD_resp_sender_
   {
     MHD_resp_sender_std = 0,
     MHD_resp_sender_sendfile
   } resp_sender;
-#endif /* HAVE_LINUX_SENDFILE || HAVE_FREEBSD_SENDFILE */
+#endif /* _MHD_HAVE_SENDFILE */
 
   /**
    * Position in the 100 CONTINUE message that
@@ -1898,8 +1898,9 @@ MHD_check_response_header_token_ci (const struct MHD_Response *response,
 #define MHD_check_response_header_s_token_ci(r,k,tkn) \
     MHD_check_response_header_token_ci((r),(k),(tkn),MHD_STATICSTR_LEN_(tkn))
 
+
 /**
- * Internal version of ::MHD_suspend_connection().
+ * Internal version of #MHD_suspend_connection().
  *
  * @remark In thread-per-connection mode: can be called from any thread,
  * in any other mode: to be called only from thread that process

@@ -57,6 +57,7 @@ test_unmatching_ssl_version (void * cls, int port, const char *cipher_suite,
                              int curl_req_ssl_version)
 {
   struct CBC cbc;
+  (void)cls;    /* Unused. Silent compiler warning. */
   if (NULL == (cbc.buf = malloc (sizeof (char) * 256)))
     {
       fprintf (stderr, "Error: failed to allocate: %s\n",
@@ -103,6 +104,7 @@ main (int argc, char *const *argv)
   int tls_engine_index;
   enum MHD_TLS_EngineType tls_engine_type;
   const char *tls_engine_name;
+  (void)argc; (void)argv;       /* Unused. Silent compiler warning. */
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
@@ -132,11 +134,8 @@ main (int argc, char *const *argv)
     return 77;
   }
 
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error: %s\n", strerror (errno));
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
 
   const char *aes128_sha = "AES128-SHA";
   const char *aes256_sha = "AES256-SHA";

@@ -175,6 +175,10 @@ endif
 
 TESTS = $(check_PROGRAMS)
 
+# Do not test trigger of select by shutdown of listen socket
+# on Cygwin as this ability is deliberately ignored on Cygwin
+# to improve compatibility with core OS.
+if !CYGWIN_TARGET
 if HAVE_LISTEN_SHUTDOWN
 check_PROGRAMS += \
   test_shutdown_select \
@@ -183,6 +187,7 @@ else
 check_PROGRAMS += \
   test_shutdown_select_ignore \
   test_shutdown_poll_ignore
+endif
 endif
 
 test_start_stop_SOURCES = \

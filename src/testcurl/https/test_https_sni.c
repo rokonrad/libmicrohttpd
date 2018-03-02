@@ -148,6 +148,7 @@ gnutls_sni_callback (gnutls_session_t session,
   size_t name_len;
   struct GnuTLS_Hosts *host;
   unsigned int type;
+  (void)req_ca_dn;(void)nreqs;(void)pk_algos;(void)pk_algos_length;   /* Unused. Silent compiler warning. */
 
   if (NULL == gnutls_hosts)
     {
@@ -314,6 +315,7 @@ main (int argc, char *const *argv)
     { MHD_TLS_ENGINE_TYPE_OPENSSL, (int (*) ()) openssl_sni_callback },
 #endif
   };
+  (void)argc;   /* Unused. Silent compiler warning. */
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
@@ -326,11 +328,8 @@ main (int argc, char *const *argv)
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
 #endif /* GNUTLS_REQUIRE_GCRYPT */
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error: %s\n", strerror (errno));
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
   if (NULL == curl_version_info (CURLVERSION_NOW)->ssl_version)
     {
       fprintf (stderr, "Curl does not support SSL.  Cannot run the test.\n");

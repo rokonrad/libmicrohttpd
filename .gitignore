@@ -45,6 +45,7 @@ Makefile
 /.vs
 /po/aclocal.m4
 /po/autom4te.cache
+po/configargs.stamp
 /po/configure
 /po/configure.ac
 /po/configure.acT

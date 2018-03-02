@@ -119,6 +119,8 @@ ahc_echo (void *cls,
   struct MHD_Response *response;
   struct MHD_Response **responseptr;
   int ret;
+  (void)url;(void)version;                      /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (me, method))
     return MHD_NO;              /* unexpected method */
@@ -212,9 +214,9 @@ testInternalGet ()
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -269,9 +271,9 @@ testMultithreadedGet ()
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -327,9 +329,9 @@ testMultithreadedPoolGet ()
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -399,9 +401,9 @@ testExternalGet ()
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 5L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
 
 
@@ -450,8 +452,14 @@ testExternalGet ()
       tv.tv_usec = 1000;
       if (-1 == select (maxposixs + 1, &rs, &ws, &es, &tv))
         {
+#ifdef MHD_POSIX_SOCKETS
           if (EINTR != errno)
             abort ();
+#else
+          if (WSAEINVAL != WSAGetLastError() || 0 != rs.fd_count || 0 != ws.fd_count || 0 != es.fd_count)
+            abort ();
+          Sleep (1000);
+#endif
         }
       curl_multi_perform (multi, &running);
       if (running == 0)
@@ -491,6 +499,7 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc; (void)argv; /* Unused. Silent compiler warning. */
 
   if (0 != curl_global_init (CURL_GLOBAL_WIN32))
     return 2;

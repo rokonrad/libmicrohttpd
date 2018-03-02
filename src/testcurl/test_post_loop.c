@@ -81,6 +81,8 @@ ahc_echo (void *cls,
   static int marker;
   struct MHD_Response *response;
   int ret;
+  (void)cls;(void)url;(void)version;            /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   if (0 != strcmp ("POST", method))
     {
@@ -162,9 +164,9 @@ testInternalPost ()
       else
         curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
       curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-      // NOTE: use of CONNECTTIMEOUT without also
-      //   setting NOSIGNAL results in really weird
-      //   crashes on my system!
+      /* NOTE: use of CONNECTTIMEOUT without also
+       *   setting NOSIGNAL results in really weird
+       *   crashes on my system! */
       curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
       if (CURLE_OK != (errornum = curl_easy_perform (c)))
         {
@@ -244,9 +246,9 @@ testMultithreadedPost ()
       else
         curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
       curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-      // NOTE: use of CONNECTTIMEOUT without also
-      //   setting NOSIGNAL results in really weird
-      //   crashes on my system!
+      /* NOTE: use of CONNECTTIMEOUT without also
+       *   setting NOSIGNAL results in really weird
+       *   crashes on my system! */
       curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
       if (CURLE_OK != (errornum = curl_easy_perform (c)))
         {
@@ -327,9 +329,9 @@ testMultithreadedPoolPost ()
       else
         curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
       curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-      // NOTE: use of CONNECTTIMEOUT without also
-      //   setting NOSIGNAL results in really weird
-      //   crashes on my system!
+      /* NOTE: use of CONNECTTIMEOUT without also
+       *   setting NOSIGNAL results in really weird
+       *   crashes on my system! */
       curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
       if (CURLE_OK != (errornum = curl_easy_perform (c)))
         {
@@ -433,9 +435,9 @@ testExternalPost ()
       else
         curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
       curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-      // NOTE: use of CONNECTTIMEOUT without also
-      //   setting NOSIGNAL results in really weird
-      //   crashes on my system!
+      /* NOTE: use of CONNECTTIMEOUT without also
+       *   setting NOSIGNAL results in really weird
+       *   crashes on my system! */
       curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
       mret = curl_multi_add_handle (multi, c);
       if (mret != CURLM_OK)
@@ -475,7 +477,7 @@ testExternalPost ()
           if (MHD_NO == MHD_get_timeout (d, &timeout))
             timeout = 100;      /* 100ms == INFTY -- CURL bug... */
           if ((CURLM_OK == curl_multi_timeout (multi, &ctimeout)) &&
-              (ctimeout < timeout) && (ctimeout >= 0))
+              (ctimeout < (long long)timeout) && (ctimeout >= 0))
             timeout = ctimeout;
 	  if ( (c == NULL) || (running == 0) )
 	    timeout = 0; /* terminate quickly... */
@@ -557,6 +559,7 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc;   /* Unused. Silent compiler warning. */
 
   oneone = (NULL != strrchr (argv[0], (int) '/')) ?
     (NULL != strstr (strrchr (argv[0], (int) '/'), "11")) : 0;

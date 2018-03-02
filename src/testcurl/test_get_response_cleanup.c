@@ -95,6 +95,8 @@ kill_curl (pid_t pid)
 static ssize_t
 push_callback (void *cls, uint64_t pos, char *buf, size_t max)
 {
+  (void)cls;(void)pos;	/* Unused. Silent compiler warning. */
+
   if (max == 0)
     return 0;
   buf[0] = 'd';
@@ -125,6 +127,8 @@ ahc_echo (void *cls,
   const char *me = cls;
   struct MHD_Response *response;
   int ret;
+  (void)url;(void)version;                      /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   //fprintf (stderr, "In CB: %s!\n", method);
   if (0 != strcmp (me, method))
@@ -180,10 +184,10 @@ testInternalGet ()
     }
   sprintf(url, "http://127.0.0.1:%d/", port);
   curl = fork_curl (url);
-  sleep (1);
+  (void)sleep (1);
   kill_curl (curl);
-  sleep (1);
-  // fprintf (stderr, "Stopping daemon!\n");
+  (void)sleep (1);
+  /* fprintf (stderr, "Stopping daemon!\n"); */
   MHD_stop_daemon (d);
   if (ok != 0)
     return 2;
@@ -226,11 +230,11 @@ testMultithreadedGet ()
   sprintf(url, "http://127.0.0.1:%d/", port);
   //fprintf (stderr, "Forking cURL!\n");
   curl = fork_curl (url);
-  sleep (1);
+  (void)sleep (1);
   kill_curl (curl);
-  sleep (1);
+  (void)sleep (1);
   curl = fork_curl (url);
-  sleep (1);
+  (void)sleep (1);
   if (ok != 0)
     {
       kill_curl (curl);
@@ -238,7 +242,7 @@ testMultithreadedGet ()
       return 64;
     }
   kill_curl (curl);
-  sleep (1);
+  (void)sleep (1);
   //fprintf (stderr, "Stopping daemon!\n");
   MHD_stop_daemon (d);
   if (ok != 0)
@@ -281,9 +285,9 @@ testMultithreadedPoolGet ()
     }
   sprintf(url, "http://127.0.0.1:%d/", port);
   curl = fork_curl (url);
-  sleep (1);
+  (void)sleep (1);
   kill_curl (curl);
-  sleep (1);
+  (void)sleep (1);
   //fprintf (stderr, "Stopping daemon!\n");
   MHD_stop_daemon (d);
   if (ok != 0)
@@ -374,7 +378,7 @@ testExternalGet ()
         }
       MHD_run (d);
     }
-  // fprintf (stderr, "Stopping daemon!\n");
+  /* fprintf (stderr, "Stopping daemon!\n"); */
   MHD_stop_daemon (d);
   if (ok != 0)
     return 1024;
@@ -386,6 +390,8 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc;   /* Unused. Silent compiler warning. */
+
 #ifndef _WIN32
   /* Solaris has no way to disable SIGPIPE on socket disconnect. */
   if (MHD_NO == MHD_is_feature_supported (MHD_FEATURE_AUTOSUPPRESS_SIGPIPE))

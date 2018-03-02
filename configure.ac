@@ -22,14 +22,14 @@
 #
 AC_PREREQ([2.64])
 LT_PREREQ([2.4.0])
-AC_INIT([GNU Libmicrohttpd],[0.9.55],[libmicrohttpd@gnu.org])
+AC_INIT([GNU Libmicrohttpd],[0.9.59],[libmicrohttpd@gnu.org])
 AM_INIT_AUTOMAKE([silent-rules] [subdir-objects])
 AC_CONFIG_HEADERS([MHD_config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-LIB_VERSION_CURRENT=55
+LIB_VERSION_CURRENT=58
 LIB_VERSION_REVISION=0
-LIB_VERSION_AGE=43
+LIB_VERSION_AGE=46
 AC_SUBST(LIB_VERSION_CURRENT)
 AC_SUBST(LIB_VERSION_REVISION)
 AC_SUBST(LIB_VERSION_AGE)
@@ -69,12 +69,17 @@ MHD_SYS_EXT
 LT_INIT([win32-dll])
 LT_LANG([Windows Resource])
 
+# Workaround for libgcrypt
+AS_IF([[test "x$lt_sysroot" != "x" && test "x$SYSROOT" = "x"]], [[SYSROOT="$lt_sysroot"]])
+
 PACKAGE_VERSION_MAJOR='m4_car(m4_unquote(m4_split(AC_PACKAGE_VERSION, [\.])))'
 PACKAGE_VERSION_MINOR='m4_argn(2, m4_unquote(m4_split(AC_PACKAGE_VERSION, [\.])))'
 PACKAGE_VERSION_SUBMINOR='m4_argn(3, m4_unquote(m4_split(AC_PACKAGE_VERSION, [\.])))'
+AS_VAR_ARITH([MHD_W32_DLL_SUFF],[[$LIB_VERSION_CURRENT - $LIB_VERSION_AGE]])
 AC_SUBST([PACKAGE_VERSION_MAJOR])
 AC_SUBST([PACKAGE_VERSION_MINOR])
 AC_SUBST([PACKAGE_VERSION_SUBMINOR])
+AC_SUBST([MHD_W32_DLL_SUFF])
 AC_CONFIG_FILES([src/microhttpd/microhttpd_dll_res.rc])
 
 MHD_LIB_CPPFLAGS=""
@@ -341,6 +346,9 @@ gnu*)
 ;;
 esac
 
+AM_CONDITIONAL([CYGWIN_TARGET], [[test "x$os_is_windows" = "xyes" && \
+                                  test "x${os_is_native_w32}" != "xyes"]])
+
 AC_ARG_WITH([threads],
    [AS_HELP_STRING([--with-threads=LIB],[choose threading library (posix, w32, auto) [auto]])],
    [], [with_threads='auto'])
@@ -369,7 +377,9 @@ AS_IF([[test "x$with_threads" = "xauto"]],
    [
     AC_MSG_CHECKING([[for W32 threads]])
     AC_LINK_IFELSE(
-      [AC_LANG_PROGRAM([#include <windows.h>], [ HANDLE h = CreateThread(NULL, 0, NULL, NULL, 0, NULL);])]
+      [AC_LANG_PROGRAM([[
+#include <windows.h>
+         ]], [ HANDLE h = CreateThread(NULL, 0, NULL, NULL, 0, NULL);])]
       , [[mhd_have_w32_threads='yes']], [[mhd_have_w32_threads='no']]
       )
     AC_MSG_RESULT([[$mhd_have_w32_threads]])
@@ -673,7 +683,9 @@ if test "$enable_poll" != "no"; then
   else
     AC_MSG_CHECKING([for WSAPoll()])
     AC_LINK_IFELSE([
-      AC_LANG_PROGRAM([[#include <winsock2.h>]], [[
+      AC_LANG_PROGRAM([[
+#include <winsock2.h>
+       ]], [[
 WSAPOLLFD fda[2];
 WSAPoll(fda, 2, 0);]])],
         [
@@ -710,7 +722,9 @@ fi
 if test "x$enable_epoll" = "xyes"; then
   AC_CACHE_CHECK([for epoll_create1()], [mhd_cv_have_epoll_create1], [
     AC_LINK_IFELSE([
-      AC_LANG_PROGRAM([[#include <sys/epoll.h>]], [[
+      AC_LANG_PROGRAM([[
+#include <sys/epoll.h>
+        ]], [[
 int fd;
 fd = epoll_create1(EPOLL_CLOEXEC);]])],
       [mhd_cv_have_epoll_create1=yes],
@@ -761,7 +775,7 @@ AC_CHECK_MEMBER([struct sockaddr_in.sin_len],
 
 AC_CHECK_DECLS([getsockname],
   [
-   AC_CHECK_FUNCS([getsockname], 
+   AC_CHECK_FUNCS([getsockname],
      [
       AC_CACHE_CHECK([[whether getsockname() is usable]], [[mhc_cv_getsockname_usable]],
         [
@@ -1077,7 +1091,9 @@ AC_CHECK_DECL([[clock_gettime]],
         ])
      ], [], [$MHD_LIBDEPS])
    LIBS="$SAVE_LIBS"
-  ], [], [[#include <time.h>]])
+  ], [], [[
+#include <time.h>
+  ]])
 
 AC_MSG_CHECKING([[for clock_get_time]])
 AC_LINK_IFELSE(
@@ -1232,11 +1248,22 @@ AC_FUNC_FSEEKO
 AC_CHECK_FUNCS([lseek64 pread64 pread])
 
 # check for various sendfile functions
-found_sendfile="no"
-AC_MSG_CHECKING([[for Linux-style sendfile(2)]])
-AC_LINK_IFELSE(
-  [AC_LANG_PROGRAM(
-    [[
+AC_ARG_ENABLE([sendfile],
+   [AS_HELP_STRING([--disable-sendfile],
+               [disable usage of sendfile() for HTTP connections [auto]])],
+   [],
+   [enable_sendfile="auto"])
+AS_CASE([$enable_sendfile],
+  [[auto | yes]],[[found_sendfile="no"]],
+  [[no]],[[found_sendfile="disabled"]],
+  [AC_MSG_ERROR([[unknown value specified: --enable-sendfile=$enable_sendfile]])]
+)
+AS_VAR_IF([[found_sendfile]], [["no"]],
+  [
+    AC_MSG_CHECKING([[for Linux-style sendfile(2)]])
+    AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM(
+        [[
 #include <sys/sendfile.h>
 
 static void empty_func(void)
@@ -1246,25 +1273,27 @@ static void empty_func(void)
 }
 /* Declare again to check form match */
 ssize_t sendfile(int, int, off_t*, size_t);
-    ]],
-    [[
-      int fd1=0, fd2=2;
-      off_t o = 0;
-      size_t s = 5;
-      ssize_t r;
-      r = sendfile (fd1, fd2, &o, s);
-      if (r)
-        empty_func();
-    ]]
-   )
-  ],
-  [
-    AC_DEFINE([HAVE_LINUX_SENDFILE], [1], [Define to 1 if you have linux-style sendfile(2).])
-    found_sendfile="yes, linux-style"
-    AC_MSG_RESULT([[yes]])
-    AC_CHECK_FUNCS([sendfile64]) 
-  ],
-  [AC_MSG_RESULT([[no]])
+        ]],
+        [[
+          int fd1=0, fd2=2;
+          off_t o = 0;
+          size_t s = 5;
+          ssize_t r;
+          r = sendfile (fd1, fd2, &o, s);
+          if (r)
+            empty_func();
+        ]]
+       )
+      ],
+      [
+        AC_DEFINE([HAVE_LINUX_SENDFILE], [1], [Define to 1 if you have linux-style sendfile(2).])
+        found_sendfile="yes, Linux-style"
+        AC_MSG_RESULT([[yes]])
+        AC_CHECK_FUNCS([sendfile64])
+      ],
+      [AC_MSG_RESULT([[no]])
+      ]
+    )
   ]
 )
 AS_VAR_IF([[found_sendfile]], [["no"]],
@@ -1308,6 +1337,96 @@ int sendfile(int, int, off_t, size_t,
    )
   ]
 )
+AS_VAR_IF([[found_sendfile]], [["no"]],
+  [
+   AC_MSG_CHECKING([[for Darwin-style sendfile(2)]])
+   AC_LINK_IFELSE(
+     [AC_LANG_PROGRAM(
+       [[
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+
+static void empty_func(void)
+{
+/* Check for declaration */
+  (void)sendfile;
+}
+/* Declare again to check form match */
+int sendfile(int, int, off_t, off_t*,
+             struct sf_hdtr *, int);
+       ]],
+       [[
+         int fd=0, s=1;
+         off_t o = 0;
+         off_t l = 5;
+         int r;
+         r = sendfile (fd, s, o, &l, (void*)0, 0);
+         if (r)
+           empty_func();
+       ]]
+      )
+     ],
+     [
+       AC_DEFINE([HAVE_DARWIN_SENDFILE], [1], [Define to 1 if you have Darwin-style sendfile(2).])
+       found_sendfile="yes, Darwin-style"
+       AC_MSG_RESULT([[yes]])
+     ],
+     [AC_MSG_RESULT([[no]])
+     ]
+   )
+  ]
+)
+
+AS_VAR_IF([[found_sendfile]], [["no"]],
+  [
+   AC_MSG_CHECKING([[for Solaris-style sendfile(3)]])
+   SAVE_LIBS="$LIBS"
+   LIBS="$LIBS -lsendfile"
+   AC_LINK_IFELSE(
+     [AC_LANG_PROGRAM(
+       [[
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/sendfile.h>
+
+static void empty_func(void)
+{
+/* Check for declaration */
+  (void)sendfile;
+}
+/* Declare again to check form match */
+ssize_t sendfile(int out_fd, int in_fd,
+                 off_t *off, size_t len);
+       ]],
+       [[
+         int fd1=0, fd2=1;
+         off_t o = 0;
+         size_t l = 5;
+         ssize_t r;
+         r = sendfile (fd1, fd2, &o, l);
+         if (r)
+           empty_func();
+       ]]
+      )
+     ],
+     [
+       AC_DEFINE([HAVE_SOLARIS_SENDFILE], [1], [Define to 1 if you have Solaris-style sendfile(3).])
+       found_sendfile="yes, Solaris-style"
+       MHD_LIBDEPS="-lsendfile $MHD_LIBDEPS"
+       MHD_LIBDEPS_PKGCFG="-lsendfile $MHD_LIBDEPS_PKGCFG"
+       AC_MSG_RESULT([[yes]])
+       AC_CHECK_FUNCS([sendfile64])
+     ],
+     [AC_MSG_RESULT([[no]])
+     ]
+   )
+   LIBS="$SAVE_LIBS"
+  ]
+)
+AS_IF([[test "x$found_sendfile" = "xno" && test "x$enable_sendfile" = "xyes"]],
+  AC_MSG_ERROR([[sendfile() usage was requested by configure parameter, but no usable sendfile() function is detected]])
+)
 
 # optional: have error messages ?
 AC_MSG_CHECKING([[whether to generate error messages]])
@@ -1342,13 +1461,13 @@ AC_CHECK_PROG([have_socat],[socat], [yes], [no])
 AM_CONDITIONAL([HAVE_ZZUF], [test "x$have_zzuf" = "xyes"])
 AM_CONDITIONAL([HAVE_SOCAT], [test "x$have_socat" = "xyes"])
 
-GNUTLS_CPPFLAGS=""
-GNUTLS_LDFLAGS=""
 have_gnutls=no
 have_gnutls_sni=no
 have_gcrypt=no
 enable_gnutls=no
 enable_openssl=no
+AS_UNSET([GNUTLS_CPPFLAGS])
+AS_UNSET([GNUTLS_LDFLAGS])
 
 # optional: really use GnuTLS as a TLS engine?
 AC_MSG_CHECKING([whether to use GnuTLS for HTTPS testing only])
@@ -1387,6 +1506,10 @@ AC_ARG_WITH([[gnutls]],
     case $with_gnutls in
       no)
         AC_MSG_RESULT([[GnuTLS disabled]])
+        AS_UNSET([GNUTLS_CPPFLAGS])
+        AS_UNSET([GNUTLS_CFLAGS])
+        AS_UNSET([GNUTLS_LDFLAGS])
+        AS_UNSET([GNUTLS_LIBS])
         ;;
       yes)
         AC_MSG_RESULT([[automatically, forced]])
@@ -1404,7 +1527,6 @@ AC_ARG_WITH([[gnutls]],
                 GNUTLS_CPPFLAGS="-I$with_gnutls/include"
                 GNUTLS_LDFLAGS="-L$with_gnutls/lib"
                 GNUTLS_LIBS="-lgnutls"
-                AC_CHECK_LIB([gnutls], [gnutls_load_file], [AC_CHECK_LIB([gnutls], [gnutls_privkey_import_x509_raw], [have_gnutls_sni=yes])])
                 have_gnutls=yes
               ])], [], [AC_INCLUDES_DEFAULT])
         AS_IF([test "x$have_gnutls" != "xyes"], [AC_MSG_ERROR([can't find usable libgnutls at specified prefix $with_gnutls])])
@@ -1418,6 +1540,47 @@ AC_ARG_WITH([[gnutls]],
 
 AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
   [
+    AC_CACHE_CHECK([[whether to add pkg-config special search directories]], [mhd_cv_pkgconf_add_dirs],
+     [
+      AS_IF([[test "x$host_os" = "xsolaris2.11" && test "x$cross_compiling" = "xno"]],
+       [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+char size_chk[7-sizeof(char*)];
+#if defined(_LP64) || defined(__LP64__) || defined(__x86_64) || defined(__x86_64__)
+#error This is 64-bit target.
+choke me now
+#endif
+#if defined(__amd64) || defined(__amd64__) || defined(__sparcv9) || defined(__sparc_v9__)
+#error This is 64-bit target.
+choke me now
+#endif
+           ]], [[]]
+          )
+         ],
+         [
+          mhd_cv_pkgconf_add_dirs='/usr/lib/pkgconfig/gnutls-3'
+         ],
+         [
+          AS_IF([[test "x$host_cpu" = "xx86_64" || test "x$host_cpu" = "xi386"]],
+                  [[mhd_cv_pkgconf_add_dirs='/usr/lib/amd64/pkgconfig/gnutls-3:/usr/lib/amd64/pkgconfig']],
+                [[test "x$host_cpu" = "xsparc"]],
+                  [[mhd_cv_pkgconf_add_dirs='/usr/lib/sparkv9/pkgconfig/gnutls-3:/usr/lib/sparkv9/pkgconfig']],
+                  [[mhd_cv_pkgconf_add_dirs='/usr/lib/64/pkgconfig/gnutls-3:/usr/lib/64/pkgconfig']]
+          )
+         ]
+        )
+       ],
+       [[ mhd_cv_pkgconf_add_dirs='no' ]]
+      )
+     ]
+    )
+    AS_IF([[test "x$mhd_cv_pkgconf_add_dirs" != "xno"]],
+     [
+      test "x$PKG_CONFIG_PATH" = "x" || PKG_CONFIG_PATH="${PKG_CONFIG_PATH}${PATH_SEPARATOR}"
+      PKG_CONFIG_PATH="${PKG_CONFIG_PATH}${mhd_cv_pkgconf_add_dirs}"
+      export PKG_CONFIG_PATH
+     ]
+    )
     PKG_CHECK_MODULES(GNUTLS, [[gnutls]],
       [
        have_gnutls_pkgcfg='yes'
@@ -1425,13 +1588,13 @@ AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
        SAVE_CFLAGS="$CFLAGS"
        SAVE_LDFLAGS="$LDFLAGS"
        SAVE_LIBS="$LIBS"
-       CPPFLAGS="$GNUTLS_CFLAGS $CPPFLAGS"
        CFLAGS="$GNUTLS_CFLAGS $CFLAGS"
-       LDFLAGS="$GNUTLS_LIBS $LDFLAGS"
        LIBS="$LIBS $GNUTLS_LIBS"
        AC_MSG_CHECKING([[whether GnuTLS is usable]])
        AC_LINK_IFELSE([
-         AC_LANG_PROGRAM([[#include <gnutls/gnutls.h>]], [[
+         AC_LANG_PROGRAM([[
+#include <gnutls/gnutls.h>
+          ]], [[
                 gnutls_session_t session;
                 gnutls_priority_t priorities;
                 gnutls_global_init();
@@ -1442,25 +1605,25 @@ AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
           [
            AC_MSG_RESULT([[yes]])
            have_gnutls=yes
+           # GNUTLS_CFLAGS is actually CPPFLAGS
            GNUTLS_CPPFLAGS="$GNUTLS_CFLAGS"
+           # GNUTLS_CFLAGS is combination of LDFLAGS and LIBS
            GNUTLS_LDFLAGS="$GNUTLS_LIBS"
-           AC_MSG_CHECKING([[for gnutls_privkey_import_x509_raw()]])
-           AC_LINK_IFELSE([
-             AC_LANG_PROGRAM([[#include <gnutls/gnutls.h>]], [[
-                    gnutls_datum_t data;
-                    gnutls_privkey_t key;
-                    gnutls_load_file("key.pem", &data);
-                    gnutls_privkey_import_x509_raw(key, &data, GNUTLS_X509_FMT_PEM, NULL, 0);
-                    gnutls_free(data.data);
-                  ]])], [[have_gnutls_sni=yes]], [[have_gnutls_sni=no]])
-           AC_MSG_RESULT([[$have_gnutls_sni]])
           ],
           [
            AC_MSG_RESULT([[no]])
            have_gnutls=no
           ])
 
-       AS_IF([test "x$have_gnutls" != "xyes"], [AC_MSG_WARN([pkg-config reports that GnuTLS is present, but GnuTLS can't be used])])
+       AS_IF([test "x$have_gnutls" != "xyes"],
+         [
+          AC_MSG_WARN([pkg-config reports that GnuTLS is present, but GnuTLS can't be used])
+          AS_UNSET([GNUTLS_CPPFLAGS])
+          AS_UNSET([GNUTLS_CFLAGS])
+          AS_UNSET([GNUTLS_LDFLAGS])
+          AS_UNSET([GNUTLS_LIBS])
+         ]
+       )
        CPPFLAGS="$SAVE_CPPFLAGS"
        CFLAGS="$SAVE_CFLAGS"
        LDFLAGS="$SAVE_LDFLAGS"
@@ -1473,7 +1636,6 @@ AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
         [AC_CHECK_LIB([gnutls], [gnutls_priority_set],
           [
             GNUTLS_LIBS="-lgnutls"
-            AC_CHECK_LIB([gnutls], [gnutls_load_file], [AC_CHECK_LIB([gnutls], [gnutls_privkey_import_x509_raw], [have_gnutls_sni=yes])])
             have_gnutls=yes
           ])], [], [AC_INCLUDES_DEFAULT])
       ])
@@ -1498,13 +1660,13 @@ AS_IF([test "x$with_gnutls" != "xno" && test "x$have_gnutls" != "xyes"],
        # A bit of hack: unset cache variable to force recheck
        AS_UNSET([ac_cv_header_gnutls_gnutls_h])
        AC_CHECK_HEADERS([gnutls/gnutls.h],
-        [AC_CHECK_LIB([gnutls], [gnutls_priority_set],
+        [AS_UNSET([ac_cv_lib_gnutls_gnutls_priority_set]) # A bit of hack: unset cache variable to force recheck
+         AC_CHECK_LIB([gnutls], [gnutls_priority_set],
           [
             GNUTLS_CPPFLAGS="$LIBGCRYPT_CFLAGS"
             GNUTLS_CFLAGS="$LIBGCRYPT_CFLAGS"
             GNUTLS_LDFLAGS="$LIBGCRYPT_LIBS"
             GNUTLS_LIBS="-lgnutls"
-            AC_CHECK_LIB([gnutls], [gnutls_load_file], [AC_CHECK_LIB([gnutls], [gnutls_privkey_import_x509_raw], [have_gnutls_sni=yes])])
             have_gnutls=yes
           ])], [], [AC_INCLUDES_DEFAULT])
        CPPFLAGS="$SAVE_CPPFLAGS"
@@ -1610,10 +1772,29 @@ AS_IF([test "x$have_openssl" != "xyes" && test "x$with_openssl" = "xyes"], [AC_M
      SAVE_CFLAGS="$CFLAGS"
      SAVE_LDFLAGS="$LDFLAGS"
      SAVE_LIBS="$LIBS"
-     CPPFLAGS="$GNUTLS_CFLAGS $CPPFLAGS"
+     CPPFLAGS="$GNUTLS_CPPFLAGS $CPPFLAGS"
      CFLAGS="$GNUTLS_CFLAGS $CFLAGS"
-     LDFLAGS="$GNUTLS_LIBS $LDFLAGS"
+     LDFLAGS="$GNUTLS_LDFLAGS $LDFLAGS"
      LIBS="$LIBS $GNUTLS_LIBS"
+     AC_MSG_CHECKING([[for gnutls_privkey_import_x509_raw()]])
+     AC_LINK_IFELSE([
+       AC_LANG_PROGRAM([[
+#include <gnutls/gnutls.h>
+#include <gnutls/abstract.h>
+          ]], [[
+            gnutls_datum_t data;
+            gnutls_privkey_t key = 0;
+#ifndef gnutls_load_file
+            (void)gnutls_load_file; /* Check for declaration. */
+#endif
+#ifndef gnutls_privkey_import_x509_raw
+            (void)gnutls_privkey_import_x509_raw; /* Check for declaration. */
+#endif
+            gnutls_load_file("key.pem", &data);
+            gnutls_privkey_import_x509_raw(key, &data, GNUTLS_X509_FMT_PEM, NULL, 0);
+            gnutls_free(data.data);
+          ]])], [[have_gnutls_sni=yes]], [[have_gnutls_sni=no]])
+     AC_MSG_RESULT([[$have_gnutls_sni]])
      AC_CACHE_CHECK([[whether GnuTLS require libgcrypt initialisation]], [mhd_cv_grypt_required],
        [
         AC_COMPILE_IFELSE(
@@ -1638,6 +1819,10 @@ choke me now
      CFLAGS="$SAVE_CFLAGS"
      LDFLAGS="$SAVE_LDFLAGS"
      LIBS="$SAVE_LIBS"
+    ],
+    [
+     AS_UNSET([GNUTLS_CPPFLAGS])
+     AS_UNSET([GNUTLS_LDFLAGS])
     ]
   )
 
@@ -1652,7 +1837,6 @@ choke me now
          # LIBGCRYPT_CFLAGS can be actually a CPPFLAGS, so check them both
          CPPFLAGS="$CPPFLAGS $LIBGCRYPT_CFLAGS"
          AC_CHECK_HEADERS([gcrypt.h], [], [have_gcrypt=no], [AC_INCLUDES_DEFAULT])
-         # Check for GnuTLS with gcrypt flags
          CPPFLAGS="$SAVE_CPPFLAGS"
          CFLAGS="$SAVE_CFLAGS"
        ]
@@ -1674,15 +1858,6 @@ choke me now
      )
     ]
   )
-  AC_SUBST([GNUTLS_CPPFLAGS])
-  AC_SUBST([GNUTLS_CFLAGS])
-  AC_SUBST([GNUTLS_LDFLAGS])
-  AC_SUBST([GNUTLS_LIBS])
-
-  AC_SUBST([OPENSSL_CPPFLAGS])
-  AC_SUBST([OPENSSL_CFLAGS])
-  AC_SUBST([OPENSSL_LDFLAGS])
-  AC_SUBST([OPENSSL_LIBS])
 
   have_https=no
   MSG_TLS_ENGINES=""
@@ -1694,6 +1869,12 @@ choke me now
      AS_IF([[test "x$mhd_cv_grypt_required" = "xyes" && test "x$have_gcrypt" != "xyes"]],
        [
         AC_MSG_RESULT([no (lacking required libgcrypt)])
+        AS_UNSET([LIBGCRYPT_CFLAGS])
+        AS_UNSET([LIBGCRYPT_LIBS])
+        AS_UNSET([GNUTLS_CPPFLAGS])
+        AS_UNSET([GNUTLS_CFLAGS])
+        AS_UNSET([GNUTLS_LDFLAGS])
+        AS_UNSET([GNUTLS_LIBS])
        ],
        [
         have_https=yes
@@ -1712,6 +1893,8 @@ choke me now
           [
            AC_MSG_RESULT([yes])
            MSG_TLS_ENGINES+="${MSG_TLS_ENGINES:+, }libgnutls"
+           AS_UNSET([LIBGCRYPT_CFLAGS])
+           AS_UNSET([LIBGCRYPT_LIBS])
            MHD_LIB_CPPFLAGS="$MHD_LIB_CPPFLAGS $GNUTLS_CPPFLAGS"
            MHD_LIB_CFLAGS="$MHD_LIB_CFLAGS $GNUTLS_CFLAGS"
            MHD_LIB_LDFLAGS="$MHD_LIB_LDFLAGS $GNUTLS_LDFLAGS"
@@ -1742,6 +1925,12 @@ choke me now
     ],
     [
      AC_MSG_RESULT([no (lacking libgnutls)])
+     AS_UNSET([LIBGCRYPT_CFLAGS])
+     AS_UNSET([LIBGCRYPT_LIBS])
+     AS_UNSET([GNUTLS_CPPFLAGS])
+     AS_UNSET([GNUTLS_CFLAGS])
+     AS_UNSET([GNUTLS_LDFLAGS])
+     AS_UNSET([GNUTLS_LIBS])
     ]
   )
 
@@ -1796,6 +1985,14 @@ AM_CONDITIONAL([GNUTLS_REQUIRE_GCRYPT], [[test "x$have_gnutls" = "xyes" && test 
 AM_CONDITIONAL([ENABLE_GNUTLS], [[test "x$enable_gnutls" = "xyes"]])
 AM_CONDITIONAL([ENABLE_OPENSSL], [test "x$enable_openssl" = "xyes"])
 AM_CONDITIONAL([ENABLE_HTTPS], [test "x$enable_https" = "xyes"])
+AC_SUBST([GNUTLS_CPPFLAGS])
+AC_SUBST([GNUTLS_CFLAGS])
+AC_SUBST([GNUTLS_LDFLAGS])
+AC_SUBST([GNUTLS_LIBS])
+AC_SUBST([OPENSSL_CPPFLAGS])
+AC_SUBST([OPENSSL_CFLAGS])
+AC_SUBST([OPENSSL_LDFLAGS])
+AC_SUBST([OPENSSL_LIBS])
 
 # optional: HTTP Basic Auth support. Enabled by default
 AC_MSG_CHECKING([[whether to support HTTP basic authentication]])
@@ -1908,6 +2105,7 @@ AC_MSG_RESULT($use_gcov)
 AM_CONDITIONAL([USE_COVERAGE], [test "x$use_gcov" = "xyes"])
 
 AX_COUNT_CPUS
+AS_IF([[test "$CPU_COUNT" -gt "32"]], [[CPU_COUNT="32"]])dnl Limit resource usage
 AC_SUBST([CPU_COUNT])
 
 AC_MSG_CHECKING([[whether to enable debug asserts]])
@@ -1981,6 +2179,7 @@ po/configure.acT:po/configure.ac.in
 Makefile
 contrib/Makefile
 doc/Makefile
+doc/doxygen/libmicrohttpd.doxy
 doc/doxygen/Makefile
 doc/examples/Makefile
 m4/Makefile
@@ -2011,28 +2210,27 @@ else
  MSG_CURL="yes"
 fi
 
-AC_MSG_NOTICE([libmicrohttpd ${PACKAGE_VERSION} Configuration Summary:
+AC_MSG_NOTICE([GNU libmicrohttpd ${PACKAGE_VERSION} Configuration Summary:
+  Target directory:  ${prefix}
   Cross-compiling:   ${cross_compiling}
   Operating System:  ${host_os}
+  Shutdown of listening socket trigger select: ${mhd_cv_host_shtdwn_trgr_select}
+  Inter-thread comm: ${use_itc}
+  poll support:      ${enable_poll=no}
+  epoll support:     ${enable_epoll=no}
+  sendfile used:     ${found_sendfile}
+  HTTPS support:     ${MSG_HTTPS}
   Threading lib:     ${USE_THREADS}
   Use thread names:  ${enable_thread_names}
-  Inter-thread comm: ${use_itc}
-  libcurl (testing): ${MSG_CURL}
-  Target directory:  ${prefix}
-  Shutdown of listening socket
-  trigger select:    ${mhd_cv_host_shtdwn_trgr_select}
   Use debug asserts: ${enable_asserts}
   Messages:          ${enable_messages}
   Basic auth.:       ${enable_bauth}
   Digest auth.:      ${enable_dauth}
   HTTP "Upgrade":    ${enable_httpupgrade}
   Postproc:          ${enable_postprocessor}
-  HTTPS support:     ${MSG_HTTPS}
-  poll support:      ${enable_poll=no}
-  epoll support:     ${enable_epoll=no}
-  sendfile used:     ${found_sendfile}
-  build docs:        ${enable_doc}
-  build examples:    ${enable_examples}
+  Build docs:        ${enable_doc}
+  Build examples:    ${enable_examples}
+  Test with libcurl: ${MSG_CURL}
 ])
 
 if test "x$enable_https" = "xyes"

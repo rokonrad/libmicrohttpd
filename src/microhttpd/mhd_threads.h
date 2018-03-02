@@ -91,18 +91,34 @@
   typedef DWORD MHD_thread_ID_;
 #endif
 
+/* Depending on implementation, pthread_create() MAY set thread ID into
+ * provided pointer and after it start thread OR start thread and after
+ * if set thread ID. In latter case, to avoid data races, additional
+ * pthread_self() call is required in thread routine. Is some platform
+ * is known for setting thread ID BEFORE starting thread macro
+ * MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD could be defined
+ * to save some resources. */
 #if defined(MHD_USE_POSIX_THREADS)
+#  ifdef MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD
   union _MHD_thread_handle_ID_
   {
-    MHD_thread_handle_  handle;
-    MHD_thread_ID_      ID;
+    MHD_thread_handle_  handle; /**< To be used in other threads */
+    MHD_thread_ID_      ID;     /**< To be used in thread itself */
   };
   typedef union _MHD_thread_handle_ID_ MHD_thread_handle_ID_;
+#  else  /* ! MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD */
+  struct _MHD_thread_handle_ID_
+  {
+    MHD_thread_handle_  handle; /**< To be used in other threads */
+    MHD_thread_ID_      ID;     /**< To be used in thread itself */
+  };
+  typedef struct _MHD_thread_handle_ID_ MHD_thread_handle_ID_;
+#  endif /* ! MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD */
 #elif defined(MHD_USE_W32_THREADS)
   struct _MHD_thread_handle_ID_
   {
-    MHD_thread_handle_  handle;
-    MHD_thread_ID_      ID;
+    MHD_thread_handle_  handle; /**< To be used in other threads */
+    MHD_thread_ID_      ID;     /**< To be used in thread itself */
   };
   typedef struct _MHD_thread_handle_ID_ MHD_thread_handle_ID_;
 #endif
@@ -139,6 +155,28 @@
 #define MHD_thread_ID_match_current_(ID) (GetCurrentThreadId() == (ID))
 #endif
 
+#if defined(MHD_USE_POSIX_THREADS)
+#  ifdef MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD
+/**
+ * Initialise thread ID.
+ * @param thread_handle_ID_ptr pointer to thread handle-ID
+ */
+#define MHD_thread_init_(thread_handle_ID_ptr) (void)0
+#  else  /* ! MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD */
+/**
+ * Initialise thread ID.
+ * @param thread_handle_ID_ptr pointer to thread handle-ID
+ */
+#define MHD_thread_init_(thread_handle_ID_ptr) ((thread_handle_ID_ptr)->ID=pthread_self())
+#  endif /* ! MHD_PTHREAD_CREATE__SET_ID_BEFORE_START_THREAD */
+#elif defined(MHD_USE_W32_THREADS)
+/**
+ * Initialise thread ID.
+ * @param thread_handle_ID_ptr pointer to thread handle-ID
+ */
+#define MHD_thread_init_(thread_handle_ID_ptr) ((thread_handle_ID_ptr)->ID=GetCurrentThreadId())
+#endif
+
 /**
  * Signature of main function for a thread.
  *
@@ -152,7 +190,7 @@ typedef MHD_THRD_RTRN_TYPE_
 /**
  * Create a thread and set the attributes according to our options.
  *
- * If thread is created, thread handle must be freed by #MHD_join_thread_().
+ * If thread is created, thread handle must be freed by MHD_join_thread_().
  *
  * @param thread        handle to initialize
  * @param stack_size    size of stack for new thread, 0 for default

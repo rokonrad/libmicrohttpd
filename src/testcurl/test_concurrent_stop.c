@@ -66,6 +66,7 @@ copyBuffer (void *ptr,
 	    size_t size, size_t nmemb,
 	    void *ctx)
 {
+  (void)ptr;(void)ctx;  /* Unused. Silent compiler warning. */
   return size * nmemb;
 }
 
@@ -83,6 +84,8 @@ ahc_echo (void *cls,
   static int ptr;
   const char *me = cls;
   int ret;
+  (void)url;(void)version;                      /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (me, method))
     return MHD_NO;              /* unexpected method */
@@ -181,7 +184,7 @@ do_gets (void * param)
           _exit(99);
         }
     }
-  sleep (1);
+  (void)sleep (1);
   for (j=0;j<PAR;j++)
     {
       pthread_cancel(par[j]);
@@ -226,7 +229,7 @@ testMultithreadedGet (int port,
       port = (int)dinfo->port;
     }
   p = start_gets (port);
-  sleep (1);
+  (void)sleep (1);
   MHD_stop_daemon (d);
   pthread_join (p, NULL);
   return 0;
@@ -257,7 +260,7 @@ testMultithreadedPoolGet (int port,
       port = (int)dinfo->port;
     }
   p = start_gets (port);
-  sleep (1);
+  (void)sleep (1);
   MHD_stop_daemon (d);
   pthread_join (p, NULL);
   return 0;
@@ -269,11 +272,12 @@ main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
   int port;
+  (void)argc;   /* Unused. Silent compiler warning. */
+
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
   else
     port = 1142;
-
 
   oneone = (NULL != strrchr (argv[0], (int) '/')) ?
     (NULL != strstr (strrchr (argv[0], (int) '/'), "11")) : 0;

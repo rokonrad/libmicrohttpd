@@ -82,6 +82,9 @@ ahc_echo (void *cls,
   const char *password = "testpass";
   const char *realm = "test@example.com";
   int ret;
+  (void)cls;(void)url;                          /* Unused. Silent compiler warning. */
+  (void)method;(void)version;(void)upload_data; /* Unused. Silent compiler warning. */
+  (void)upload_data_size;(void)unused;         /* Unused. Silent compiler warning. */
 
   username = MHD_digest_auth_get_username (connection);
   if ( (username == NULL) ||
@@ -131,17 +134,19 @@ ahc_echo (void *cls,
 static int
 testDigestAuth ()
 {
-  int fd;
   CURL *c;
   CURLcode errornum;
   struct MHD_Daemon *d;
   struct CBC cbc;
-  size_t len;
-  size_t off = 0;
   char buf[2048];
   char rnd[8];
   int port;
   char url[128];
+#ifndef WINDOWS
+  int fd;
+  size_t len;
+  size_t off = 0;
+#endif /* ! WINDOWS */
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port = 0;
@@ -163,7 +168,7 @@ testDigestAuth ()
   while (off < 8)
     {
       len = read(fd, rnd, 8);
-      if (len == -1)
+      if (len == (size_t)-1)
         {
           fprintf(stderr, "Failed to read `%s': %s\n",
                   "/dev/urandom",
@@ -185,7 +190,7 @@ testDigestAuth ()
           GetLastError ());
       return 1;
     }
-    b = CryptGenRandom (cc, 8, rnd);
+    b = CryptGenRandom (cc, 8, (BYTE*)rnd);
     if (b == 0)
     {
       fprintf (stderr, "Failed to generate 8 random bytes: %lu\n",
@@ -249,6 +254,7 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc; (void)argv; /* Unused. Silent compiler warning. */
 
 #ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);

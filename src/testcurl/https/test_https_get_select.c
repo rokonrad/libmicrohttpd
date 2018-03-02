@@ -36,8 +36,6 @@
 
 extern const char srv_key_pem[];
 extern const char srv_self_signed_cert_pem[];
-extern const char srv_signed_cert_pem[];
-extern const char srv_signed_key_pem[];
 
 static int oneone;
 
@@ -54,6 +52,7 @@ ahc_echo (void *cls,
   const char *me = cls;
   struct MHD_Response *response;
   int ret;
+  (void)version;(void)upload_data;(void)upload_data_size;       /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (me, method))
     return MHD_NO;              /* unexpected method */
@@ -200,10 +199,16 @@ testExternalGet (int flags,
             {
 #ifdef MHD_POSIX_SOCKETS
               if (EINTR != errno)
-#endif /* MHD_POSIX_SOCKETS */
                 abort ();
+#else
+              if (WSAEINVAL != WSAGetLastError() || 0 != rs.fd_count || 0 != ws.fd_count || 0 != es.fd_count)
+                abort ();
+              Sleep (1000);
+#endif
             }
         }
+      else
+        (void)sleep (1);
       curl_multi_perform (multi, &running);
       if (running == 0)
         {
@@ -248,12 +253,10 @@ main (int argc, char *const *argv)
   int tls_engine_index;
   enum MHD_TLS_EngineType tls_engine_type;
   const char *tls_engine_name;
+  (void)argc;   /* Unused. Silent compiler warning. */
 
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error: %s\n", strerror (errno));
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
   if (NULL == curl_version_info (CURLVERSION_NOW)->ssl_version)
     {
       fprintf (stderr, "Curl does not support SSL.  Cannot run the test.\n");

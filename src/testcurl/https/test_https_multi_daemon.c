@@ -34,7 +34,6 @@
 #endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
-extern int curl_check_version (const char *req_version, ...);
 extern const char srv_key_pem[];
 extern const char srv_self_signed_cert_pem[];
 
@@ -52,6 +51,8 @@ test_concurent_daemon_pair (void *cls,
   struct MHD_Daemon *d1;
   struct MHD_Daemon *d2;
   int port1, port2;
+  (void)cls;    /* Unused. Silent compiler warning. */
+
 
   if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
     port1 = port2 = 0;
@@ -133,6 +134,7 @@ main (int argc, char *const *argv)
   const char *tls_engine_name;
   FILE *cert;
   const char *aes256_sha = "AES256-SHA";
+  (void)argc; (void)argv;       /* Unused. Silent compiler warning. */
 
 #ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
@@ -140,12 +142,8 @@ main (int argc, char *const *argv)
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
 #endif /* GNUTLS_REQUIRE_GCRYPT */
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error (code: %u). l:%d f:%s\n", errorCount, __LINE__,
-               __FUNCTION__);
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
   if (NULL == curl_version_info (CURLVERSION_NOW)->ssl_version)
     {
       fprintf (stderr, "Curl does not support SSL.  Cannot run the test.\n");

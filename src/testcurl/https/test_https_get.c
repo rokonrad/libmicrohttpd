@@ -34,55 +34,8 @@
 #endif /* GNUTLS_REQUIRE_GCRYPT */
 #include "tls_test_common.h"
 
-extern const char srv_key_pem[];
-extern const char srv_self_signed_cert_pem[];
 extern const char srv_signed_cert_pem[];
 extern const char srv_signed_key_pem[];
-
-
-static int
-test_cipher_option (FILE * test_fd,
-		    const char *cipher_suite,
-		    int proto_version,
-		    enum MHD_TLS_EngineType tls_engine_type)
-{
-  int ret;
-  struct MHD_Daemon *d;
-  int port;
-
-  if (MHD_NO != MHD_is_feature_supported (MHD_FEATURE_AUTODETECT_BIND_PORT))
-    port = 0;
-  else
-    port = 3040;
-
-  d = MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS |
-                        MHD_USE_ERROR_LOG, port,
-                        NULL, NULL, &http_ahc, NULL,
-                        MHD_OPTION_TLS_ENGINE_TYPE, tls_engine_type,
-                        MHD_OPTION_HTTPS_MEM_KEY, srv_key_pem,
-                        MHD_OPTION_HTTPS_MEM_CERT, srv_self_signed_cert_pem,
-                        MHD_OPTION_END);
-
-  if (d == NULL)
-    {
-      fprintf (stderr, MHD_E_SERVER_INIT);
-      return -1;
-    }
-  if (0 == port)
-    {
-      const union MHD_DaemonInfo *dinfo;
-      dinfo = MHD_get_daemon_info (d, MHD_DAEMON_INFO_BIND_PORT);
-      if (NULL == dinfo || 0 == dinfo->port)
-        { MHD_stop_daemon (d); return -1; }
-      port = (int)dinfo->port;
-    }
-
-  ret = test_https_transfer (test_fd, port, cipher_suite, proto_version);
-
-  MHD_stop_daemon (d);
-  return ret;
-}
-
 
 /* perform a HTTP GET request via SSL/TLS */
 static int
@@ -137,7 +90,7 @@ main (int argc, char *const *argv)
   enum MHD_TLS_EngineType tls_engine_type;
   const char *tls_engine_name;
   const char *aes256_sha_tlsv1   = "AES256-SHA";
-  const char *des_cbc3_sha_tlsv1 = "DES-CBC3-SHA";
+  (void)argc;   /* Unused. Silent compiler warning. */
 
 #ifdef GNUTLS_REQUIRE_GCRYPT
   gcry_control (GCRYCTL_ENABLE_QUICK_RANDOM, 0);
@@ -145,11 +98,8 @@ main (int argc, char *const *argv)
   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
 #endif
 #endif /* GNUTLS_REQUIRE_GCRYPT */
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error: %s\n", strerror (errno));
-      return 99;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
   if (NULL == curl_version_info (CURLVERSION_NOW)->ssl_version)
     {
       fprintf (stderr, "Curl does not support SSL.  Cannot run the test.\n");
@@ -160,7 +110,6 @@ main (int argc, char *const *argv)
   if (curl_uses_nss_ssl() == 0)
     {
       aes256_sha_tlsv1 = "rsa_aes_256_sha";
-      des_cbc3_sha_tlsv1 = "rsa_aes_128_sha";
     }
 
   tls_engine_index = 0;
@@ -170,8 +119,6 @@ main (int argc, char *const *argv)
     {
       errorCount +=
         test_secure_get (NULL, aes256_sha_tlsv1, CURL_SSLVERSION_TLSv1, tls_engine_type);
-      errorCount +=
-        test_cipher_option (NULL, des_cbc3_sha_tlsv1, CURL_SSLVERSION_TLSv1, tls_engine_type);
     }
   print_test_result (errorCount, argv[0]);
 

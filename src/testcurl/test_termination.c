@@ -57,6 +57,9 @@ connection_handler (void *cls,
                     void **ptr)
 {
   static int i;
+  (void)cls;(void)url;                          /* Unused. Silent compiler warning. */
+  (void)method;(void)version;(void)upload_data; /* Unused. Silent compiler warning. */
+  (void)upload_data_size;                       /* Unused. Silent compiler warning. */
 
   if (*ptr == NULL)
     {
@@ -82,11 +85,12 @@ connection_handler (void *cls,
 static size_t
 write_data (void *ptr, size_t size, size_t nmemb, void *stream)
 {
+  (void)ptr;(void)stream;       /* Unused. Silent compiler warning. */
   return size * nmemb;
 }
 
 int
-main ()
+main (void)
 {
   struct MHD_Daemon *daemon;
   int port;
@@ -117,7 +121,7 @@ main ()
     }
 
   CURL *curl = curl_easy_init ();
-  //curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  /* curl_easy_setopt(curl, CURLOPT_POST, 1L); */
   char url[255];
   sprintf (url, "http://127.0.0.1:%d", port);
   curl_easy_setopt (curl, CURLOPT_URL, url);
@@ -130,7 +134,7 @@ main ()
       exit (1);
     }
   /* CPU used to go crazy here */
-  sleep (1);
+  (void)sleep (1);
 
   curl_easy_cleanup (curl);
   MHD_stop_daemon (daemon);

@@ -87,6 +87,8 @@ ahc_echo (void *cls,
   struct MHD_Response *response;
   int ret;
   int fd;
+  (void)url;(void)version;                      /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (me, method))
     return MHD_NO;              /* unexpected method */
@@ -433,8 +435,14 @@ testExternalGet ()
       tv.tv_usec = 1000;
       if (-1 == select (maxposixs + 1, &rs, &ws, &es, &tv))
         {
+#ifdef MHD_POSIX_SOCKETS
           if (EINTR != errno)
             abort ();
+#else
+          if (WSAEINVAL != WSAGetLastError() || 0 != rs.fd_count || 0 != ws.fd_count || 0 != es.fd_count)
+            abort ();
+          Sleep (1000);
+#endif
         }
       curl_multi_perform (multi, &running);
       if (running == 0)
@@ -566,6 +574,7 @@ main (int argc, char *const *argv)
   unsigned int errorCount = 0;
   const char *tmp;
   FILE *f;
+  (void)argc;   /* Unused. Silent compiler warning. */
 
   if ( (NULL == (tmp = getenv ("TMPDIR"))) &&
        (NULL == (tmp = getenv ("TMP"))) &&

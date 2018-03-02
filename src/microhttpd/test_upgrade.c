@@ -568,9 +568,10 @@ send_all (wr_socket sock,
 {
   size_t len = strlen (text);
   ssize_t ret;
+  size_t off;
 
   make_blocking (wr_fd (sock));
-  for (size_t off = 0; off < len; off += ret)
+  for (off = 0; off < len; off += ret)
     {
       ret = wr_send (sock,
                        &text[off],
@@ -644,9 +645,10 @@ recv_all (wr_socket sock,
   size_t len = strlen (text);
   char buf[len];
   ssize_t ret;
+  size_t off;
 
   make_blocking (wr_fd (sock));
-  for (size_t off = 0; off < len; off += ret)
+  for (off = 0; off < len; off += ret)
     {
       ret = wr_recv (sock,
                        &buf[off],
@@ -1108,8 +1110,9 @@ main (int argc,
   use_tls_tool = TLS_CLI_NO_TOOL;
   test_tls = has_in_name(argv[0], "_tls");
 
-  if (has_param(argc, argv, "-v") || has_param(argc, argv, "--verbose"))
-    verbose = 1;
+  verbose = 1;
+  if (has_param(argc, argv, "-q") || has_param(argc, argv, "--quiet"))
+    verbose = 0;
 
   if (test_tls)
     {
@@ -1121,9 +1124,9 @@ main (int argc,
       else if (has_param(argc, argv, "--use-gnutls-lib"))
         use_tls_tool = TLS_LIB_GNUTLS;
 #if defined(HAVE_FORK) && defined(HAVE_WAITPID)
-      else if (0 == system ("gnutls-cli --version 1> /dev/null"))
+      else if (0 == system ("gnutls-cli --version 1> /dev/null 2> /dev/null"))
         use_tls_tool = TLS_CLI_GNUTLS;
-      else if (0 == system ("openssl version 1> /dev/null"))
+      else if (0 == system ("openssl version 1> /dev/null 2> /dev/null"))
         use_tls_tool = TLS_CLI_OPENSSL;
 #endif /* HAVE_FORK && HAVE_WAITPID */
 #ifdef HAVE_GNUTLS

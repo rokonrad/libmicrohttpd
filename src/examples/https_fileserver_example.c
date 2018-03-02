@@ -39,7 +39,7 @@
 #define BUF_SIZE 1024
 #define MAX_URL_LEN 255
 
-// TODO remove if unused
+/* TODO remove if unused */
 #define CAFILE "ca.pem"
 #define CRLFILE "crl.pem"
 
@@ -203,8 +203,6 @@ main (int argc, char *const *argv)
       return 1;
     }
 
-  /* TODO check if this is truly necessary -  disallow usage of the blocking /dev/random */
-  /* gcry_control(GCRYCTL_ENABLE_QUICK_RANDOM, 0); */
   TLS_daemon =
     MHD_start_daemon (MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_ERROR_LOG |
                       MHD_USE_TLS,

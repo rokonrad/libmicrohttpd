@@ -241,11 +241,8 @@ main (int argc, char *const *argv)
       return -1;
     }
 
-  if (0 != curl_global_init (CURL_GLOBAL_ALL))
-    {
-      fprintf (stderr, "Error: %s\n", strerror (errno));
-      return -1;
-    }
+  if (!testsuite_curl_global_init ())
+    return 99;
 
   tls_engine_index = 0;
   while (0 <= (tls_engine_index = iterate_over_available_tls_engines (tls_engine_index,

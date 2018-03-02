@@ -1,3 +1,103 @@
+Thu Feb  1 10:12:22 CET 2018
+	Releasing GNU libicrohttpd 0.9.59. -CG
+
+Thu Feb  1 08:39:50 CET 2018
+	Fix masking operation. -CG/silvioprog
+
+Mon Jan 29 17:33:54 CET 2018
+	Fix deadlock when failing to prepare chunked response
+	(#5260). -CG/ghaderer
+
+Thu Jan  4 12:24:33 CET 2018
+	Fix __clang_major__ related warnings for non-clang
+	compilers reported by Tim on the mailinglist. -CG
+
+Mon Dec 11 17:11:00 MSK 2017
+	Fixed tests on platforms with huge number of CPUs.
+	Doxygen configuration was updated.
+	Various doxygen fixes. -EG
+
+Mon Dec 07 21:08:00 MSK 2017
+	Releasing GNU libmicrohttpd 0.9.58. -EG
+
+Mon Dec 07 16:01:00 MSK 2017
+	Fixed HTTPS tests on modern platforms. -EG
+
+Mon Dec 04 15:43:00 MSK 2017
+	Minor documentation installation fixes. -EG
+
+Mon Nov 27 22:58:38 CET 2017
+	Tolerate AF_UNIX when trying to determine our binding port
+	from socket.  Use `sockaddr_storage` instead of trying to
+	guess the sockaddr type before calling getsockname(). -CG
+
+Mon Nov 27 22:24:00 MSK 2017
+	Releasing GNU libmicrohttpd 0.9.57. -EG
+
+Mon Nov 27 21:36:00 MSK 2017
+	Updated README. -EG
+
+Mon Nov 27 18:37:00 MSK 2017
+	Corrected names in W32 DLL resources.
+	Reordered and clarified configure summary message.
+	Additional compiler warning mutes for builds with various configure
+	parameters.
+	Fixed tests on Cygwin.
+	Used larger SETSIZE for Cygwin (same value as for native W32).
+	Minor fixes for Cygwin.
+	Added configure parameter to force disable usage of sendfile().
+	Minor testsuite fixes.
+	Really fixed builds with optimisation for size. -EG
+
+Sat Nov 25 18:37:00 MSK 2017
+	Fixed build with optimisation for size. -EG
+
+Fri Nov 24 20:14:02 CET 2017
+	Releasing GNU libmicrohttpd 0.9.56. -CG
+
+Thu Nov 23 17:40:00 MSK 2017
+	Added MHD_FEATURE_SENDFILE enum value and report. -EG
+
+Thu Nov 23 08:56:00 MSK 2017
+	Fixed receiving large requests in TLS mode with epoll.
+	Improved GnuTLS and libgcrypt detection in configure, do not ignore
+	flags in GNUTLS_{CFLAGS,LIBS} variables.
+	Added special trick for Solaris/Openindiana to find GnuTLS-3 with
+	right bitness.
+	Added support for Solaris sendfile(3) function.
+	Fixed dataraces with thread ID on W32 and pthread. Now check for
+	correct thread in MHD_queue_response() works correctly.
+	Fixed and silenced compiler warnings in tests and examples.
+	Removed usage of TLS flags in examples where TLS is not required.
+	Added support for MultiSSL in https tests with libcurl >= 7.56.0.
+	Improved detection of OFF_T_MAX, SIZE_MAX. Added macros for
+	SSIZE_MAX in mhd_limits.h. There are some platforms that really
+	require those macros.
+	Added support for Darwin's sendfile() function.
+	Updated .gitignore files.
+	Reworked mhd_sys_extentions.m4 with better support of modern
+	platforms, more reliable detection of required macros, and
+	detection of disabling of system-specific features by
+	_XOPEN_SOURCE macro. -EG
+
+Wed Nov  1 20:43:00 MSK 2017
+	Mixed and muted many compiler warnings. Now GCC's flags
+	-Wall -Wextra could be used for building.
+	Fixed compilation of examples without libmagic.
+	Better detection of libgnutls in configure.
+	Reworked launch of nested configure in "po" directory to
+	prevent useless reconfiguration.
+	Fixed some wrong asserts.
+	Enabled "test_options" test.
+	Use "test_start_stop" without libcurl.
+	Use chunks with sendfile() to prevent locking thread for
+	single connection with large file.
+	Added support for FreeBSD's sendfile with additional
+	optimisations for FreeBSD 11.
+	Refactoring and improvements for MHD_start_daemon_va() and
+	MHD_stop_daemon().
+	Fixed testing with GnuTLS >= 3.6.0. -EG
+
 Mon Oct  9 22:38:07 CEST 2017
 	Add MHD_free() to allow proper free()-ing of username/password
 	data returned via MHD_digest_auth_get_username() or

@@ -85,6 +85,7 @@ ahc_echo (void *cls,
   const char *me = cls;
   struct MHD_Response *response;
   int ret;
+  (void)version;(void)upload_data;(void)upload_data_size;       /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (me, method))
     return MHD_NO;              /* unexpected method */
@@ -170,9 +171,9 @@ testMultithreadedGet ()
           curl_easy_setopt (c, CURLOPT_FORBID_REUSE, 0L);
           curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
           curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-          // NOTE: use of CONNECTTIMEOUT without also
-          //   setting NOSIGNAL results in really weird
-          //   crashes on my system!
+          /* NOTE: use of CONNECTTIMEOUT without also
+           *   setting NOSIGNAL results in really weird
+           *   crashes on my system! */
           curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
 
           errornum = curl_easy_perform (c);
@@ -196,7 +197,7 @@ testMultithreadedGet ()
         return 32;
       }
 
-      sleep(2);
+      (void)sleep(2);
 
       for (i = 0; i < 2; ++i)
         {
@@ -277,9 +278,9 @@ testMultithreadedPoolGet ()
           curl_easy_setopt (c, CURLOPT_FORBID_REUSE, 0L);
           curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
           curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-          // NOTE: use of CONNECTTIMEOUT without also
-          //   setting NOSIGNAL results in really weird
-          //   crashes on my system!
+          /* NOTE: use of CONNECTTIMEOUT without also
+           *   setting NOSIGNAL results in really weird
+           *   crashes on my system! */
           curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
 
           errornum = curl_easy_perform (c);
@@ -310,7 +311,7 @@ testMultithreadedPoolGet ()
       for (i = 0; i < 3; ++i)
         curl_easy_cleanup (cenv[i]);
 
-      sleep(2);
+      (void)sleep(2);
 
       for (i = 0; i < 2; ++i)
         {
@@ -336,6 +337,7 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc;   /* Unused. Silent compiler warning. */
 
   oneone = (NULL != strrchr (argv[0], (int) '/')) ?
     (NULL != strstr (strrchr (argv[0], (int) '/'), "11")) : 0;

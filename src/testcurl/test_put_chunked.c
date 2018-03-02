@@ -92,6 +92,7 @@ ahc_echo (void *cls,
   struct MHD_Response *response;
   int ret;
   int have;
+  (void)version;(void)unused;   /* Unused. Silent compiler warning. */
 
   if (0 != strcmp ("PUT", method))
     return MHD_NO;              /* unexpected method */
@@ -168,17 +169,17 @@ testInternalPut ()
   curl_easy_setopt (c, CURLOPT_READFUNCTION, &putBuffer);
   curl_easy_setopt (c, CURLOPT_READDATA, &pos);
   curl_easy_setopt (c, CURLOPT_UPLOAD, 1L);
+  /* by not giving the file size, we force chunking! */
   /*
-     // by not giving the file size, we force chunking!
      curl_easy_setopt (c, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 8L);
    */
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -239,17 +240,17 @@ testMultithreadedPut ()
   curl_easy_setopt (c, CURLOPT_READFUNCTION, &putBuffer);
   curl_easy_setopt (c, CURLOPT_READDATA, &pos);
   curl_easy_setopt (c, CURLOPT_UPLOAD, 1L);
+  /* by not giving the file size, we force chunking! */
   /*
-     // by not giving the file size, we force chunking!
      curl_easy_setopt (c, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 8L);
    */
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -312,17 +313,17 @@ testMultithreadedPoolPut ()
   curl_easy_setopt (c, CURLOPT_READFUNCTION, &putBuffer);
   curl_easy_setopt (c, CURLOPT_READDATA, &pos);
   curl_easy_setopt (c, CURLOPT_UPLOAD, 1L);
+  /* by not giving the file size, we force chunking! */
   /*
-     // by not giving the file size, we force chunking!
      curl_easy_setopt (c, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 8L);
    */
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
   if (CURLE_OK != (errornum = curl_easy_perform (c)))
     {
@@ -400,17 +401,17 @@ testExternalPut ()
   curl_easy_setopt (c, CURLOPT_READFUNCTION, &putBuffer);
   curl_easy_setopt (c, CURLOPT_READDATA, &pos);
   curl_easy_setopt (c, CURLOPT_UPLOAD, 1L);
+  /* by not giving the file size, we force chunking! */
   /*
-     // by not giving the file size, we force chunking!
      curl_easy_setopt (c, CURLOPT_INFILESIZE_LARGE, (curl_off_t) 8L);
    */
   curl_easy_setopt (c, CURLOPT_FAILONERROR, 1);
   curl_easy_setopt (c, CURLOPT_TIMEOUT, 150L);
   curl_easy_setopt (c, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
   curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 150L);
-  // NOTE: use of CONNECTTIMEOUT without also
-  //   setting NOSIGNAL results in really weird
-  //   crashes on my system!
+  /* NOTE: use of CONNECTTIMEOUT without also
+   *   setting NOSIGNAL results in really weird
+   *   crashes on my system! */
   curl_easy_setopt (c, CURLOPT_NOSIGNAL, 1);
 
 
@@ -459,8 +460,14 @@ testExternalPut ()
       tv.tv_usec = 1000;
       if (-1 == select (maxposixs + 1, &rs, &ws, &es, &tv))
         {
+#ifdef MHD_POSIX_SOCKETS
           if (EINTR != errno)
             abort ();
+#else
+          if (WSAEINVAL != WSAGetLastError() || 0 != rs.fd_count || 0 != ws.fd_count || 0 != es.fd_count)
+            abort ();
+          Sleep (1000);
+#endif
         }
       curl_multi_perform (multi, &running);
       if (running == 0)
@@ -505,6 +512,7 @@ int
 main (int argc, char *const *argv)
 {
   unsigned int errorCount = 0;
+  (void)argc; (void)argv; /* Unused. Silent compiler warning. */
 
   if (0 != curl_global_init (CURL_GLOBAL_WIN32))
     return 2;

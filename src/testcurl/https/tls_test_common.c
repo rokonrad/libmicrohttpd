@@ -62,8 +62,6 @@ int iterate_over_available_tls_engines (int index,
 }
 
 
-int curl_check_version (const char *req_version, ...);
-
 FILE *
 setup_ca_cert ()
 {
@@ -108,6 +106,7 @@ test_daemon_get (void *cls,
   CURLcode errornum;
   char url[255];
   size_t len;
+  (void)cls;    /* Unused. Silent compiler warning. */
 
   len = strlen (test_data);
   if (NULL == (cbc.buf = malloc (sizeof (char) * len)))
@@ -201,12 +200,14 @@ copyBuffer (void *ptr, size_t size, size_t nmemb, void *ctx)
  */
 int
 http_ahc (void *cls, struct MHD_Connection *connection,
-          const char *url, const char *method, const char *upload_data,
-          const char *version, size_t *upload_data_size, void **ptr)
+          const char *url, const char *method, const char *version,
+          const char *upload_data, size_t *upload_data_size, void **ptr)
 {
   static int aptr;
   struct MHD_Response *response;
   int ret;
+  (void)cls;(void)url;(void)version;            /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;     /* Unused. Silent compiler warning. */
 
   if (0 != strcmp (method, MHD_HTTP_METHOD_GET))
     return MHD_NO;              /* unexpected method */
@@ -228,11 +229,13 @@ http_ahc (void *cls, struct MHD_Connection *connection,
 /* HTTP access handler call back */
 int
 http_dummy_ahc (void *cls, struct MHD_Connection *connection,
-                const char *url, const char *method, const char *upload_data,
-                const char *version, size_t *upload_data_size,
+                const char *url, const char *method, const char *version,
+                const char *upload_data, size_t *upload_data_size,
                 void **ptr)
 {
-  return 0;
+  (void)cls;(void)connection;(void)url;(void)method;(void)version;      /* Unused. Silent compiler warning. */
+  (void)upload_data;(void)upload_data_size;(void)ptr;                   /* Unused. Silent compiler warning. */
+ return 0;
 }
 
 /**
@@ -314,6 +317,9 @@ gen_test_file_url (char *url,
 #else  /* ! PATH_MAX */
   doc_path_len = 4096;
 #endif /* ! PATH_MAX */
+#ifdef WINDOWS
+  size_t i;
+#endif /* ! WINDOWS */
   if (NULL == (doc_path = malloc (doc_path_len)))
     {
       fprintf (stderr, MHD_E_MEM);
@@ -328,7 +334,7 @@ gen_test_file_url (char *url,
       return -1;
     }
 #ifdef WINDOWS
-  for (int i = 0; i < doc_path_len; i++)
+  for (i = 0; i < doc_path_len; i++)
   {
     if (doc_path[i] == 0)
       break;
@@ -351,7 +357,7 @@ gen_test_file_url (char *url,
                 "https://127.0.0.1",
                 port,
                 doc_path,
-                "urlpath") >= url_len)
+                "urlpath") >= (long long)url_len)
     ret = -1;
 
   free (doc_path);
@@ -372,6 +378,7 @@ test_https_transfer (void *cls,
   int ret = 0;
   struct CBC cbc;
   char url[255];
+  (void)cls;    /* Unused. Silent compiler warning. */
 
   len = strlen (test_data);
   if (NULL == (cbc.buf = malloc (sizeof (char) * len)))
@@ -525,6 +532,7 @@ test_wrap (const char *test_name, int
   int ret;
   va_list arg_list;
   struct MHD_Daemon *d;
+  (void)cls;    /* Unused. Silent compiler warning. */
 
   va_start (arg_list, proto_version);
   port = setup_testcase (&d, port, daemon_flags, arg_list);
@@ -551,4 +559,23 @@ test_wrap (const char *test_name, int
   teardown_testcase (d);
   va_end (arg_list);
   return ret;
+}
+
+int testsuite_curl_global_init (void)
+{
+  CURLcode res;
+#if LIBCURL_VERSION_NUM >= 0x073800
+  if (CURLSSLSET_OK != curl_global_sslset(CURLSSLBACKEND_GNUTLS, NULL, NULL))
+    {
+      if (CURLSSLSET_TOO_LATE == curl_global_sslset(CURLSSLBACKEND_OPENSSL, NULL, NULL))
+        fprintf (stderr, "WARNING: libcurl was already initialised.\n");
+    }
+#endif /* LIBCURL_VERSION_NUM >= 0x07380 */
+  res = curl_global_init (CURL_GLOBAL_ALL);
+  if (CURLE_OK != res)
+    {
+      fprintf (stderr, "libcurl initialisation error: %s\n", curl_easy_strerror(res));
+      return 0;
+    }
+  return 1;
 }
