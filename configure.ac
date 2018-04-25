@@ -1696,11 +1696,11 @@ AC_ARG_WITH([[openssl]],
         AC_MSG_RESULT([[-I$with_openssl/include -L$with_openssl/lib -lssl -lcrypto]])
         SAVE_LDFLAGS="$LDFLAGS"
         SAVE_CPPFLAGS="$CPPFLAGS"
-        LDFLAGS="-L$with_openssl/lib $LDFLAGS"
+        LDFLAGS="-lcrypto -L$with_openssl/lib $LDFLAGS"
         CPPFLAGS="-I$with_openssl/include $CPPFLAGS"
         have_openssl_pkgcfg=no
           AC_CHECK_HEADERS([openssl/ssl.h],
-            [AC_CHECK_LIB([libssl], [SSL_CTX_new],
+            [AC_CHECK_LIB([ssl], [SSL_CTX_new],
               [
                 OPENSSL_CPPFLAGS="-I$with_openssl/include"
                 OPENSSL_LDFLAGS="-L$with_openssl/lib"
