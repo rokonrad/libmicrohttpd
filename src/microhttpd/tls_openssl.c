@@ -31,6 +31,11 @@
 #include "internal.h"
 #include "tls.h"
 
+static const char session_context[16] = {
+  '\xf8', '\x5e', '\x97', '\xfe', '\x74', '\xd0', '\x49', '\xbf',
+  '\x9d', '\x70', '\xf3', '\x4e', '\x0f', '\xe8', '\x68', '\xd8'
+};
+
 typedef ssize_t
 (*BIO_ReadCallback) (void *context,
                      void *buf,
@@ -348,6 +353,16 @@ MHD_TLS_openssl_init_context (struct MHD_TLS_Context *context)
     {
       MHD_TLS_LOG_CONTEXT (context,
                            _("Cannot set ECDH selection to automatic\n"));
+      SSL_CTX_free (context->d.openssl.context);
+      return false;
+    }
+
+  if (!SSL_CTX_set_session_id_context (context->d.openssl.context,
+                                       session_context,
+                                       sizeof(session_context)))
+    {
+      MHD_TLS_LOG_CONTEXT (context,
+                           _("Cannot set session context\n"));
       SSL_CTX_free (context->d.openssl.context);
       return false;
     }
@@ -1078,12 +1093,19 @@ static ssize_t
 MHD_TLS_openssl_session_handshake (struct MHD_TLS_Session * session)
 {
   int result;
+  int error;
+  unsigned long err_error;
+
+  /* reset errors */
+  ERR_clear_error();
 
   result = SSL_accept (session->d.openssl.session);
+  error = SSL_get_error (session->d.openssl.session, result);
+
   if (result == 1)
     return 0;
 
-  switch (SSL_get_error (session->d.openssl.session, result))
+  switch (error)
     {
     case SSL_ERROR_WANT_READ:
       return MHD_TLS_IO_WANTS_READ;
@@ -1091,7 +1113,22 @@ MHD_TLS_openssl_session_handshake (struct MHD_TLS_Session * session)
       return MHD_TLS_IO_WANTS_WRITE;
     default:
       MHD_TLS_LOG_SESSION (session,
-                           _("Session handskake failed\n"));
+                           _("Session handshake failed, SSL_accept: %d, SSL_get_error: %d\n"),
+                           result,
+                           error);
+      err_error = ERR_get_error();
+
+      while (err_error != 0) {
+        MHD_TLS_LOG_SESSION (session,
+                             _("Session handshake failed, SSL_accept: %d, ERR_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             result,
+                             err_error,
+                             ERR_lib_error_string(err_error),
+                             ERR_func_error_string(err_error),
+                             ERR_reason_error_string(err_error));
+
+        err_error = ERR_get_error();
+      }
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
@@ -1100,6 +1137,11 @@ static ssize_t
 MHD_TLS_openssl_session_close (struct MHD_TLS_Session * session)
 {
   int result;
+  int error;
+  unsigned long err_error;
+
+    /* reset errors */
+    ERR_clear_error();
 
   result = SSL_shutdown (session->d.openssl.session);
   if (result == 1)
@@ -1107,15 +1149,26 @@ MHD_TLS_openssl_session_close (struct MHD_TLS_Session * session)
   else if (result == 0)
     return MHD_TLS_IO_WANTS_READ;
 
-  switch (SSL_get_error (session->d.openssl.session, result))
+  error = SSL_get_error (session->d.openssl.session, result);
+  switch (error)
     {
     case SSL_ERROR_WANT_READ:
       return MHD_TLS_IO_WANTS_READ;
     case SSL_ERROR_WANT_WRITE:
       return MHD_TLS_IO_WANTS_WRITE;
     default:
-      MHD_TLS_LOG_SESSION (session,
-                           _("Session close failed\n"));
+      err_error = ERR_get_error();
+      while (err_error != 0) {
+        MHD_TLS_LOG_SESSION (session,
+                             _("Session close failed, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             error,
+                             ERR_lib_error_string(err_error),
+                             ERR_func_error_string(err_error),
+                             ERR_reason_error_string(err_error));
+
+        err_error = ERR_get_error();
+      }
+
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
