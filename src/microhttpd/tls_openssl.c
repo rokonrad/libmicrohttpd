@@ -1157,17 +1157,18 @@ MHD_TLS_openssl_session_handshake (struct MHD_TLS_Session * session)
 {
   int result;
   int error;
+#ifdef HAVE_MESSAGES
   unsigned long err_error;
+#endif
 
   /* reset errors */
   ERR_clear_error();
 
   result = SSL_accept (session->d.openssl.session);
-  error = SSL_get_error (session->d.openssl.session, result);
-
   if (result == 1)
     return 0;
 
+  error = SSL_get_error (session->d.openssl.session, result);
   switch (error)
     {
     case SSL_ERROR_WANT_READ:
@@ -1175,23 +1176,20 @@ MHD_TLS_openssl_session_handshake (struct MHD_TLS_Session * session)
     case SSL_ERROR_WANT_WRITE:
       return MHD_TLS_IO_WANTS_WRITE;
     default:
-      MHD_TLS_LOG_SESSION (session,
-                           _("Session handshake failed, SSL_accept: %d, SSL_get_error: %d\n"),
-                           result,
-                           error);
+#ifdef HAVE_MESSAGES
       err_error = ERR_get_error();
-
       while (err_error != 0) {
         MHD_TLS_LOG_SESSION (session,
-                             _("Session handshake failed, SSL_accept: %d, ERR_get_error: %lu\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             _("Session handshake failed, SSL_accept: %d, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
                              result,
-                             err_error,
+                             error,
                              ERR_lib_error_string(err_error),
                              ERR_func_error_string(err_error),
                              ERR_reason_error_string(err_error));
 
         err_error = ERR_get_error();
       }
+#endif
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
@@ -1201,10 +1199,12 @@ MHD_TLS_openssl_session_close (struct MHD_TLS_Session * session)
 {
   int result;
   int error;
+#ifdef HAVE_MESSAGES
   unsigned long err_error;
+#endif
 
-    /* reset errors */
-    ERR_clear_error();
+  /* reset errors */
+  ERR_clear_error();
 
   result = SSL_shutdown (session->d.openssl.session);
   if (result == 1)
@@ -1220,10 +1220,12 @@ MHD_TLS_openssl_session_close (struct MHD_TLS_Session * session)
     case SSL_ERROR_WANT_WRITE:
       return MHD_TLS_IO_WANTS_WRITE;
     default:
+#ifdef HAVE_MESSAGES
       err_error = ERR_get_error();
       while (err_error != 0) {
         MHD_TLS_LOG_SESSION (session,
-                             _("Session close failed, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             _("Session close failed, SSL_shutdown: %d, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             result,
                              error,
                              ERR_lib_error_string(err_error),
                              ERR_func_error_string(err_error),
@@ -1231,7 +1233,7 @@ MHD_TLS_openssl_session_close (struct MHD_TLS_Session * session)
 
         err_error = ERR_get_error();
       }
-
+#endif
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
@@ -1259,10 +1261,17 @@ MHD_TLS_openssl_session_read (struct MHD_TLS_Session * session,
                               void *buf,
                               size_t size)
 {
-  ssize_t result;
+  int result;
+  int error;
+#ifdef HAVE_MESSAGES
+  unsigned long err_error;
+#endif
 
   if (size > INT_MAX)
     size = INT_MAX;
+
+  /* reset errors */
+  ERR_clear_error();
 
   result = SSL_read (session->d.openssl.session,
                      buf,
@@ -1270,7 +1279,8 @@ MHD_TLS_openssl_session_read (struct MHD_TLS_Session * session,
   if (result > 0)
     return result;
 
-  switch (SSL_get_error (session->d.openssl.session, result))
+  error = SSL_get_error (session->d.openssl.session, result);
+  switch (error)
     {
     case SSL_ERROR_WANT_READ:
       return MHD_TLS_IO_WANTS_READ;
@@ -1282,6 +1292,20 @@ MHD_TLS_openssl_session_read (struct MHD_TLS_Session * session,
       return MHD_TLS_IO_SESSION_CLOSED;
 
     default:
+#ifdef HAVE_MESSAGES
+      err_error = ERR_get_error();
+      while (err_error != 0) {
+        MHD_TLS_LOG_SESSION (session,
+                             _("Session read failed, SSL_read: %d, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             result,
+                             error,
+                             ERR_lib_error_string(err_error),
+                             ERR_func_error_string(err_error),
+                             ERR_reason_error_string(err_error));
+
+        err_error = ERR_get_error();
+      }
+#endif
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
@@ -1291,10 +1315,17 @@ MHD_TLS_openssl_session_write (struct MHD_TLS_Session * session,
                                const void *buf,
                                size_t size)
 {
-  ssize_t result;
+  int result;
+  int error;
+#ifdef HAVE_MESSAGES
+  unsigned long err_error;
+#endif
 
   if (size > INT_MAX)
     size = INT_MAX;
+
+  /* reset errors */
+  ERR_clear_error();
 
   result = SSL_write (session->d.openssl.session,
                       buf,
@@ -1302,7 +1333,8 @@ MHD_TLS_openssl_session_write (struct MHD_TLS_Session * session,
   if (result > 0)
     return result;
 
-  switch (SSL_get_error (session->d.openssl.session, result))
+  error = SSL_get_error (session->d.openssl.session, result);
+  switch (error)
     {
     case SSL_ERROR_WANT_READ:
       return MHD_TLS_IO_WANTS_READ;
@@ -1314,6 +1346,20 @@ MHD_TLS_openssl_session_write (struct MHD_TLS_Session * session,
       return MHD_TLS_IO_SESSION_CLOSED;
 
     default:
+#ifdef HAVE_MESSAGES
+      err_error = ERR_get_error();
+      while (err_error != 0) {
+        MHD_TLS_LOG_SESSION (session,
+                             _("Session write failed, SSL_write: %d, SSL_get_error: %d\n\tlib: %s\n\tfunc: %s\n\treason: %s\n"),
+                             result,
+                             error,
+                             ERR_lib_error_string(err_error),
+                             ERR_func_error_string(err_error),
+                             ERR_reason_error_string(err_error));
+
+        err_error = ERR_get_error();
+      }
+#endif
       return MHD_TLS_IO_UNKNOWN_ERROR;
     }
 }
